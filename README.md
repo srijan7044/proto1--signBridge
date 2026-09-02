@@ -1,3 +1,5 @@
+<<<<<<< HEAD
+
 # Real-Time Sign Language → Text/Speech Translator
 
 A webcam-based system that recognizes hand signs in real time, builds them
@@ -73,6 +75,7 @@ Controls: press `s` to start/stop recording, `q` to quit. All samples
 append into `data/gestures.csv`.
 
 **Tips for good accuracy:**
+
 - Record at least 200–300 samples per sign.
 - Vary lighting, distance from camera, and slight hand rotation.
 - Keep signs visually distinct, especially early on — very similar hand
@@ -118,7 +121,7 @@ All the real-time behavior knobs are constants at the top of
   agreement are needed before a sign counts as "confirmed". Raise these
   for fewer false positives (but slower response); lower them for a
   snappier but twitchier system.
-- `REPEAT_COOLDOWN` — minimum seconds before the *same* sign can be
+- `REPEAT_COOLDOWN` — minimum seconds before the _same_ sign can be
   added to the sentence twice in a row (stops "HELLO" from repeating
   10 times while you hold the pose).
 - `MIN_CONFIDENCE` — minimum classifier confidence to even consider a
@@ -128,7 +131,7 @@ All the real-time behavior knobs are constants at the top of
 
 - **Two-handed / dynamic (motion-based) signs**: the feature vector
   already supports two hands (`utils.py` zero-pads a missing hand). For
-  signs that involve *movement* (not just a static pose), you'd extend
+  signs that involve _movement_ (not just a static pose), you'd extend
   `extract_feature_vector` to include a short temporal window of
   landmarks (e.g. last 10–15 frames) and swap the classifier for an
   LSTM/1D-CNN — happy to help build that next if you need it.
@@ -150,7 +153,7 @@ sign-language animation for it.
    words (stopwords like "a", "the", "is" dropped), since sign language
    grammar doesn't map 1:1 onto spoken/written grammar.
 2. **Clip lookup** — each gloss word is looked up in `sign_clips/`, a
-   library of pre-recorded *motion* sequences (not static poses — a sign
+   library of pre-recorded _motion_ sequences (not static poses — a sign
    is a short movement, so each clip is ~20-40 frames).
 3. **Concatenation with smoothing** — clips are joined in gloss order,
    with a handful of linearly-interpolated frames inserted between them
@@ -179,7 +182,7 @@ sign_translator/
 
 ## Step 1 — Record word clips
 
-For every word you want to be able to *generate*, record a short motion
+For every word you want to be able to _generate_, record a short motion
 clip (this is separate from the static-pose data used for recognition):
 
 ```bash
@@ -229,4 +232,3 @@ that don't round-trip cleanly are candidates for re-recording.
   is an approximation for true motion-based signs — for higher-fidelity
   verification, train a sequence-based recognition model (see the LSTM
   suggestion above) and adapt `verify_generation.py` to use it.
-
