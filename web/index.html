@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#12304a" />
+    <title>SignBridge</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="SignBridge home">SignBridge</a>
+      <button
+        id="theme-toggle"
+        class="secondary-button"
+        type="button"
+        aria-pressed="false"
+      >
+        Dark theme
+      </button>
+    </header>
+
+    <main class="shell">
+      <section class="intro" aria-labelledby="page-title">
+        <p class="eyebrow">Accessible sign recognition</p>
+        <h1 id="page-title">Turn a hand sign into a voice.</h1>
+        <p class="lede">
+          Capture a clear image, review the prediction, and build a sentence you
+          can speak aloud.
+        </p>
+      </section>
+
+      <div id="alert" class="alert" role="alert" hidden></div>
+
+      <section class="workspace" aria-label="Sign recognition workspace">
+        <div class="panel capture-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Step 1</p>
+              <h2>Capture a sign</h2>
+            </div>
+            <span id="camera-status" class="status-dot">Ready</span>
+          </div>
+          <video
+            id="camera"
+            autoplay
+            playsinline
+            muted
+            aria-label="Camera preview"
+          ></video>
+          <canvas id="canvas" hidden></canvas>
+          <div class="capture-actions">
+            <button id="start-camera" class="primary-button" type="button">
+              Use camera
+            </button>
+            <button
+              id="capture"
+              class="secondary-button"
+              type="button"
+              disabled
+            >
+              Capture frame
+            </button>
+          </div>
+          <label class="upload-label" for="upload"
+            >Or upload a hand image</label
+          >
+          <input id="upload" type="file" accept="image/png,image/jpeg" />
+          <img id="preview" alt="Annotated hand preview" hidden />
+        </div>
+
+        <div class="panel result-panel" aria-live="polite">
+          <p class="eyebrow">Step 2</p>
+          <h2>Recognition result</h2>
+          <div class="result-box">
+            <span class="result-label">Detected sign</span>
+            <strong id="result">No sign yet</strong>
+            <span id="confidence">Capture or upload an image to begin.</span>
+          </div>
+          <button
+            id="add-sign"
+            class="primary-button full-width"
+            type="button"
+            disabled
+          >
+            Add sign to sentence
+          </button>
+          <p class="small-note">
+            Keep the full hand visible and use good lighting for the best
+            result.
+          </p>
+        </div>
+      </section>
+
+      <section class="panel sentence-panel" aria-labelledby="sentence-title">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Step 3</p>
+            <h2 id="sentence-title">Build and speak</h2>
+          </div>
+          <span id="label-count">Loading labels...</span>
+        </div>
+        <label for="sentence">Sentence</label>
+        <textarea
+          id="sentence"
+          rows="4"
+          placeholder="Your recognized signs will appear here. You can also type and edit text."
+        ></textarea>
+        <div class="sentence-actions">
+          <button id="delete-word" class="secondary-button" type="button">
+            Delete last word
+          </button>
+          <button id="clear" class="secondary-button" type="button">
+            Clear
+          </button>
+          <button id="speak" class="primary-button" type="button">
+            Speak sentence
+          </button>
+        </div>
+        <p class="keyboard-help">
+          Keyboard: <kbd>Enter</kbd> in the sentence is normal text. Use the
+          controls above to edit or speak.
+        </p>
+      </section>
+    </main>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

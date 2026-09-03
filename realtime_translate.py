@@ -28,6 +28,7 @@ from collections import deque, Counter
 
 import cv2
 import joblib
+import numpy as np
 import pyttsx3
 
 from utils import create_hands_detector, extract_feature_vector, mp_drawing, mp_hands, mp_drawing_styles
@@ -43,6 +44,8 @@ STABILITY_THRESHOLD = 0.75
 REPEAT_COOLDOWN = 1.2
 # Model confidence required to even consider a prediction
 MIN_CONFIDENCE = 0.55
+# Required gap between the best and second-best class probabilities
+MIN_MARGIN = 0.10
 
 
 class TTSEngine:
@@ -138,10 +141,18 @@ def main():
                     )
 
                 feats = extract_feature_vector(result.multi_hand_landmarks, result.multi_handedness)
-                probs = model.predict_proba([feats])[0]
-                best_idx = probs.argmax()
-                confidence = probs[best_idx]
-                if confidence >= MIN_CONFIDENCE:
+                # Never classify a zero-padded/no-hand vector.
+                if feats.any():
+                    probs = model.predict_proba([feats])[0]
+                    best_idx = probs.argmax()
+                    confidence = probs[best_idx]
+                    second_best = np.partition(probs, -2)[-2]
+                else:
+                    probs = []
+                    confidence = 0.0
+                    second_best = 1.0
+
+                if confidence >= MIN_CONFIDENCE and confidence - second_best >= MIN_MARGIN:
                     # Get the predicted label safely
                     if hasattr(model, 'classes_'):
                         predicted_label = model.classes_[best_idx]

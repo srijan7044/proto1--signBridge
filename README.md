@@ -76,12 +76,8 @@ append into `data/gestures.csv`.
 
 **Tips for good accuracy:**
 
-- Record at least 200–300 samples per sign.
-- Vary lighting, distance from camera, and slight hand rotation.
-- Keep signs visually distinct, especially early on — very similar hand
-  shapes will confuse a RandomForest more than they'd confuse a human.
-- You can re-run `collect_data.py` with the same label later to add more
-  data (it appends, doesn't overwrite).
+shapes will confuse a RandomForest more than they'd confuse a human.
+data (it appends, doesn't overwrite).
 
 ## Step 2 — Train the model
 
@@ -117,30 +113,22 @@ confidence), the sentence built so far, and the key controls.
 All the real-time behavior knobs are constants at the top of
 `realtime_translate.py`:
 
-- `STABILITY_WINDOW` / `STABILITY_THRESHOLD` — how many frames of
-  agreement are needed before a sign counts as "confirmed". Raise these
-  for fewer false positives (but slower response); lower them for a
-  snappier but twitchier system.
-- `REPEAT_COOLDOWN` — minimum seconds before the _same_ sign can be
-  added to the sentence twice in a row (stops "HELLO" from repeating
-  10 times while you hold the pose).
-- `MIN_CONFIDENCE` — minimum classifier confidence to even consider a
-  prediction.
+agreement are needed before a sign counts as "confirmed". Raise these
+for fewer false positives (but slower response); lower them for a
+snappier but twitchier system.
+added to the sentence twice in a row (stops "HELLO" from repeating
+10 times while you hold the pose).
+prediction.
 
 ## Extending this
 
-- **Two-handed / dynamic (motion-based) signs**: the feature vector
-  already supports two hands (`utils.py` zero-pads a missing hand). For
-  signs that involve _movement_ (not just a static pose), you'd extend
-  `extract_feature_vector` to include a short temporal window of
-  landmarks (e.g. last 10–15 frames) and swap the classifier for an
-  LSTM/1D-CNN — happy to help build that next if you need it.
-- **Bigger vocabulary**: RandomForest scales fine to 50–100 signs; beyond
-  that, consider a small neural network on the same normalized landmarks.
-- **Full ASL fingerspelling alphabet**: works great with this exact
-  pipeline — record A–Z once each with ~300 samples per letter.
-
----
+already supports two hands (`utils.py` zero-pads a missing hand). For
+signs that involve _movement_ (not just a static pose), you'd extend
+`extract_feature_vector` to include a short temporal window of
+landmarks (e.g. last 10–15 frames) and swap the classifier for an
+LSTM/1D-CNN — happy to help build that next if you need it.
+that, consider a small neural network on the same normalized landmarks.
+pipeline — record A–Z once each with ~300 samples per letter.
 
 # Part 2: Text → Sign Language Generation
 
@@ -219,16 +207,13 @@ that don't round-trip cleanly are candidates for re-recording.
 
 ## Notes & limitations
 
-- **Missing words are skipped, never guessed** — if you sign "Hello,
-  friend" but never recorded a FRIEND clip, it's dropped with a warning
-  rather than silently producing something wrong. A natural fallback
-  (not yet implemented) is spelling out missing words letter-by-letter
-  using single-letter clips, if you've recorded a fingerspelling
-  alphabet.
-- **The stopword list is small and hardcoded** in `text_to_sign.py` —
-  tune it for your use case (e.g. keep "not" since it changes meaning).
-- **Round-trip verification uses a single-frame classifier** trained on
-  static poses (Part 1's model). This works well as a sanity check but
-  is an approximation for true motion-based signs — for higher-fidelity
-  verification, train a sequence-based recognition model (see the LSTM
-  suggestion above) and adapt `verify_generation.py` to use it.
+friend" but never recorded a FRIEND clip, it's dropped with a warning
+rather than silently producing something wrong. A natural fallback
+(not yet implemented) is spelling out missing words letter-by-letter
+using single-letter clips, if you've recorded a fingerspelling
+alphabet.
+tune it for your use case (e.g. keep "not" since it changes meaning).
+static poses (Part 1's model). This works well as a sanity check but
+is an approximation for true motion-based signs — for higher-fidelity
+verification, train a sequence-based recognition model (see the LSTM
+suggestion above) and adapt `verify_generation.py` to use it.
