@@ -386,8 +386,18 @@ function drawFrame(frameVector) {
 
   if (!frameVector || frameVector.length < 126) return;
 
-  const offsets = [[w * 0.3, h * 0.5], [w * 0.7, h * 0.5]]; // Left hand (0.3), Right hand (0.7)
-  const scale = 160;
+  const hasLeft = frameVector.slice(0, 63).some((v) => Math.abs(v) > 1e-4);
+  const hasRight = frameVector.slice(63, 126).some((v) => Math.abs(v) > 1e-4);
+
+  // Position wrist anchor at h * 0.72 so fingers extending upward (negative Y) center nicely
+  let offsets = [[w * 0.35, h * 0.72], [w * 0.65, h * 0.72]];
+  if (!hasLeft && hasRight) {
+    offsets[1] = [w * 0.5, h * 0.72];
+  } else if (hasLeft && !hasRight) {
+    offsets[0] = [w * 0.5, h * 0.72];
+  }
+
+  const scale = 110;
 
   for (let slot = 0; slot < 2; slot++) {
     const start = slot * 63;
@@ -406,7 +416,7 @@ function drawFrame(frameVector) {
 
     // Draw Skeleton Connections
     ctx.strokeStyle = slot === 0 ? "#38bdf8" : "#818cf8";
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 3.5;
     HAND_CONNECTIONS.forEach(([a, b]) => {
       ctx.beginPath();
       ctx.moveTo(points[a].x, points[a].y);
@@ -417,7 +427,7 @@ function drawFrame(frameVector) {
     // Draw Joint Circles
     points.forEach((pt) => {
       ctx.beginPath();
-      ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
+      ctx.arc(pt.x, pt.y, 4.5, 0, Math.PI * 2);
       ctx.fillStyle = "#ffffff";
       ctx.fill();
     });
@@ -433,6 +443,7 @@ function drawFrame(frameVector) {
   }
   canvasCaption.textContent = currentWord || "Sign Language";
 }
+
 
 function startAnimationPlayback() {
   animPlaying = true;
