@@ -130,7 +130,11 @@ async function predictFrame(blob) {
   }
 }
 
-startCamera.addEventListener("click", async () => {
+const cameraPowerBtn = document.querySelector("#camera-power-btn");
+const cameraOffOverlay = document.querySelector("#camera-off-overlay");
+let isCameraOn = false;
+
+async function turnCameraOn() {
   clearError();
   try {
     cameraStream = await navigator.mediaDevices.getUserMedia({
@@ -138,22 +142,75 @@ startCamera.addEventListener("click", async () => {
       audio: false,
     });
     camera.srcObject = cameraStream;
+    camera.hidden = false;
+    camera.style.display = "block";
     await camera.play();
+
+    if (cameraOffOverlay) {
+      cameraOffOverlay.hidden = true;
+      cameraOffOverlay.style.display = "none";
+    }
 
     camera.onloadedmetadata = () => {
       cameraStatus.textContent = `Camera Active (${camera.videoWidth}x${camera.videoHeight})`;
       cameraStatus.className = "status-badge status-online";
     };
 
+    isCameraOn = true;
     capture.disabled = false;
     toggleRealtime.disabled = false;
     cameraStatus.textContent = "Camera Active";
     cameraStatus.className = "status-badge status-online";
-    startCamera.textContent = "🎥 Camera Connected";
+
+    cameraPowerBtn.textContent = "🟢 Turn Camera OFF";
+    cameraPowerBtn.className = "power-button power-on";
   } catch (error) {
     showError("Camera access denied or unavailable: " + error.message);
+    turnCameraOff();
+  }
+}
+
+function turnCameraOff() {
+  if (isRealtimeActive) {
+    isRealtimeActive = false;
+    clearInterval(realtimeInterval);
+    toggleRealtime.textContent = "⚡ Live Auto-Recognize: OFF";
+    toggleRealtime.classList.remove("primary-button");
+    toggleRealtime.classList.add("secondary-button");
+  }
+
+  if (cameraStream) {
+    cameraStream.getTracks().forEach((track) => track.stop());
+    cameraStream = null;
+  }
+
+  camera.srcObject = null;
+  camera.hidden = true;
+  camera.style.display = "none";
+  if (cameraOffOverlay) {
+    cameraOffOverlay.hidden = false;
+    cameraOffOverlay.style.display = "flex";
+  }
+
+  isCameraOn = false;
+  capture.disabled = true;
+  toggleRealtime.disabled = true;
+  cameraStatus.textContent = "Camera OFF";
+  cameraStatus.className = "status-badge status-offline";
+
+  cameraPowerBtn.textContent = "🔴 Turn Camera ON";
+  cameraPowerBtn.className = "power-button power-off";
+}
+
+
+cameraPowerBtn.addEventListener("click", () => {
+  if (isCameraOn) {
+    turnCameraOff();
+  } else {
+    turnCameraOn();
   }
 });
+
 
 toggleRealtime.addEventListener("click", () => {
   isRealtimeActive = !isRealtimeActive;
