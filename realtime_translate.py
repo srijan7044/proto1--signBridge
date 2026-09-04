@@ -42,8 +42,8 @@ STABILITY_THRESHOLD = 0.75
 # Minimum seconds between confirming the SAME sign twice in a row
 # (prevents "HELLO" from being added 10 times while you hold the pose)
 REPEAT_COOLDOWN = 1.2
-# Model confidence required to even consider a prediction
-MIN_CONFIDENCE = 0.55
+# Model confidence required to accept a prediction
+MIN_CONFIDENCE = 0.90
 # Required gap between the best and second-best class probabilities
 MIN_MARGIN = 0.10
 
@@ -152,7 +152,7 @@ def main():
                     confidence = 0.0
                     second_best = 1.0
 
-                if confidence >= MIN_CONFIDENCE and confidence - second_best >= MIN_MARGIN:
+                if confidence > MIN_CONFIDENCE and confidence - second_best >= MIN_MARGIN:
                     # Get the predicted label safely
                     if hasattr(model, 'classes_'):
                         predicted_label = model.classes_[best_idx]
