@@ -138,13 +138,20 @@ startCamera.addEventListener("click", async () => {
       audio: false,
     });
     camera.srcObject = cameraStream;
+    await camera.play();
+
+    camera.onloadedmetadata = () => {
+      cameraStatus.textContent = `Camera Active (${camera.videoWidth}x${camera.videoHeight})`;
+      cameraStatus.className = "status-badge status-online";
+    };
+
     capture.disabled = false;
     toggleRealtime.disabled = false;
     cameraStatus.textContent = "Camera Active";
     cameraStatus.className = "status-badge status-online";
     startCamera.textContent = "🎥 Camera Connected";
   } catch (error) {
-    showError("Camera access denied or unavailable. You can use image upload instead.");
+    showError("Camera access denied or unavailable: " + error.message);
   }
 });
 
@@ -155,11 +162,15 @@ toggleRealtime.addEventListener("click", () => {
     toggleRealtime.classList.add("primary-button");
     toggleRealtime.classList.remove("secondary-button");
     realtimeInterval = setInterval(() => {
-      if (!camera.videoWidth) return;
-      cameraCanvas.width = camera.videoWidth;
-      cameraCanvas.height = camera.videoHeight;
-      cameraCanvas.getContext("2d").drawImage(camera, 0, 0);
-      cameraCanvas.toBlob((blob) => predictFrame(blob), "image/jpeg", 0.85);
+      const w = camera.videoWidth || 640;
+      const h = camera.videoHeight || 480;
+      cameraCanvas.width = w;
+      cameraCanvas.height = h;
+      const ctx = cameraCanvas.getContext("2d");
+      ctx.drawImage(camera, 0, 0, w, h);
+      cameraCanvas.toBlob((blob) => {
+        if (blob) predictFrame(blob);
+      }, "image/jpeg", 0.85);
     }, 400);
   } else {
     toggleRealtime.textContent = "⚡ Live Auto-Recognize: OFF";
@@ -170,11 +181,29 @@ toggleRealtime.addEventListener("click", () => {
 });
 
 capture.addEventListener("click", () => {
-  if (!camera.videoWidth) return;
-  cameraCanvas.width = camera.videoWidth;
-  cameraCanvas.height = camera.videoHeight;
-  cameraCanvas.getContext("2d").drawImage(camera, 0, 0);
-  cameraCanvas.toBlob((blob) => predictFrame(blob), "image/jpeg", 0.92);
+  clearError();
+  if (!cameraStream || !camera.srcObject) {
+    return showError("Please start the camera first by clicking 'Start Camera'.");
+  }
+
+  const w = camera.videoWidth || 640;
+  const h = camera.videoHeight || 480;
+  cameraCanvas.width = w;
+  cameraCanvas.height = h;
+  const ctx = cameraCanvas.getContext("2d");
+  ctx.drawImage(camera, 0, 0, w, h);
+
+  result.textContent = "Capturing & Analyzing...";
+  confidence.textContent = "Processing frame...";
+
+  cameraCanvas.toBlob(
+    (blob) => {
+      if (!blob) return showError("Failed to capture image frame from camera.");
+      predictFrame(blob);
+    },
+    "image/jpeg",
+    0.95
+  );
 });
 
 upload.addEventListener("change", (event) => {
@@ -220,43 +249,82 @@ document.querySelectorAll(".phrase-chip").forEach((chip) => {
 });
 
 // Web Speech API Voice Input
+let isListening = false;
+
 if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   speechRecognition = new SpeechRecognition();
   speechRecognition.continuous = false;
-  speechRecognition.interimResults = false;
+  speechRecognition.interimResults = true;
   speechRecognition.lang = "en-US";
 
   speechRecognition.onstart = () => {
+    isListening = true;
     micBtn.classList.add("listening");
-    micBtn.textContent = "🎙️ Listening...";
+    micBtn.textContent = "🎙️ Listening... Speak now!";
+    clearError();
   };
 
   speechRecognition.onresult = (event) => {
-    const transcript = event.results[0][0].transcript;
+    let transcript = "";
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      transcript += event.results[i][0].transcript;
+    }
     ttsInput.value = transcript;
-    generateSignAnimation(transcript);
+    if (event.results[0].isFinal && transcript.trim()) {
+      generateSignAnimation(transcript);
+    }
   };
 
   speechRecognition.onerror = (event) => {
-    showError(`Voice recognition error: ${event.error}`);
+    console.warn("Speech recognition error:", event.error);
+    isListening = false;
     micBtn.classList.remove("listening");
     micBtn.textContent = "🎤 Voice Input";
+
+    if (event.error === "network") {
+      showError(
+        "Voice Input Network Error: Chrome's voice recognition requires an active internet connection. " +
+        "Please check your connection/VPN, or type your message directly into the text box below!"
+      );
+      ttsInput.focus();
+    } else if (event.error === "not-allowed" || event.error === "permission-denied") {
+      showError("Microphone permission was denied. Please allow microphone access in your browser location bar.");
+    } else if (event.error === "no-speech") {
+      showError("No speech detected. Please try clicking 'Voice Input' again and speak clearly.");
+    } else if (event.error === "aborted") {
+      // User or system stopped listening silently
+    } else {
+      showError(`Voice input error (${event.error}). Please type your sentence in the box.`);
+    }
   };
 
   speechRecognition.onend = () => {
+    isListening = false;
     micBtn.classList.remove("listening");
     micBtn.textContent = "🎤 Voice Input";
   };
 
   micBtn.addEventListener("click", () => {
     clearError();
-    speechRecognition.start();
+    if (isListening) {
+      speechRecognition.stop();
+    } else {
+      try {
+        speechRecognition.start();
+      } catch (err) {
+        console.warn("Speech recognition start issue:", err);
+      }
+    }
   });
 } else {
-  micBtn.disabled = true;
-  micBtn.title = "Speech recognition not supported in this browser";
+  micBtn.addEventListener("click", () => {
+    showError("Speech recognition is not supported in this browser. Please type your message into the text box below.");
+    ttsInput.focus();
+  });
 }
+
+
 
 generateSignBtn.addEventListener("click", () => {
   generateSignAnimation(ttsInput.value);
