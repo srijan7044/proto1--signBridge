@@ -7,62 +7,165 @@ This is useful for testing when no physical camera is available.
 """
 
 import os
+import sys
 import csv
 import numpy as np
 from collections import defaultdict
 
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+def _create_hand_pose(pose_type):
+    """
+    Creates a base set of 21 (x, y, z) 3D landmark points relative to wrist (0,0,0).
+    """
+    pts = np.zeros((21, 3), dtype=np.float32)
+
+    # Base palm landmarks
+    pts[0] = [0.0, 0.0, 0.0]       # Wrist
+    pts[1] = [-0.2, -0.2, 0.0]     # Thumb CMC
+    pts[2] = [-0.35, -0.4, 0.0]    # Thumb MCP
+    pts[3] = [-0.45, -0.55, 0.0]   # Thumb IP
+    pts[4] = [-0.5, -0.7, 0.0]     # Thumb Tip
+
+    pts[5] = [-0.15, -0.6, 0.0]    # Index MCP
+    pts[6] = [-0.2, -0.85, 0.0]    # Index PIP
+    pts[7] = [-0.22, -1.05, 0.0]   # Index DIP
+    pts[8] = [-0.25, -1.25, 0.0]   # Index Tip
+
+    pts[9] = [0.0, -0.65, 0.0]     # Middle MCP
+    pts[10] = [0.0, -0.9, 0.0]     # Middle PIP
+    pts[11] = [0.0, -1.15, 0.0]    # Middle DIP
+    pts[12] = [0.0, -1.35, 0.0]    # Middle Tip
+
+    pts[13] = [0.15, -0.6, 0.0]    # Ring MCP
+    pts[14] = [0.2, -0.85, 0.0]    # Ring PIP
+    pts[15] = [0.22, -1.05, 0.0]   # Ring DIP
+    pts[16] = [0.25, -1.25, 0.0]   # Ring Tip
+
+    pts[17] = [0.3, -0.5, 0.0]     # Pinky MCP
+    pts[18] = [0.35, -0.7, 0.0]    # Pinky PIP
+    pts[19] = [0.4, -0.85, 0.0]    # Pinky DIP
+    pts[20] = [0.45, -1.0, 0.0]    # Pinky Tip
+
+    if pose_type == 'fist':
+        # Curl all fingers toward palm
+        for base in [5, 9, 13, 17]:
+            pts[base + 1][1] = -0.4
+            pts[base + 2][1] = -0.2
+            pts[base + 3][1] = -0.1
+    elif pose_type == 'thumbs_up':
+        # Curl index, middle, ring, pinky, extend thumb up
+        for base in [5, 9, 13, 17]:
+            pts[base + 1][1] = -0.4
+            pts[base + 2][1] = -0.2
+            pts[base + 3][1] = -0.1
+        pts[4] = [-0.3, -1.1, 0.0]
+    elif pose_type == 'thumbs_down':
+        for base in [5, 9, 13, 17]:
+            pts[base + 1][1] = -0.4
+            pts[base + 2][1] = -0.2
+            pts[base + 3][1] = -0.1
+        pts[4] = [-0.3, 0.8, 0.0]
+    elif pose_type == 'index_middle':
+        # Extend index and middle, curl ring and pinky
+        for base in [13, 17]:
+            pts[base + 1][1] = -0.4
+            pts[base + 2][1] = -0.2
+            pts[base + 3][1] = -0.1
+
+    return pts
+
+
 def generate_hand_landmarks(gesture_type, num_samples=300, seed=None):
     """
-    Generate synthetic hand landmarks for a specific gesture.
-    
-    Hand landmarks are 21 points (x, y, z) per hand = 63 features per hand.
-    For 2 hands = 126 features total.
-    
-    Each gesture has a characteristic "fingerprint" pattern.
+    Generate synthetic hand landmarks adhering to physical skeletal structure.
+    Strict slot assignment: Slot 0 (0..62) = Left, Slot 1 (63..125) = Right.
     """
     if seed is not None:
         np.random.seed(seed)
-    
-    # Define gesture characteristics (base values for each feature)
-    gesture_patterns = {
-        'HELLO': {
-            'base': np.array([0.1 + np.random.randn(126) * 0.05 for _ in range(num_samples)]),
-            'description': 'Hand wave (fingers together, moving back and forth)'
-        },
-        'THANKS': {
-            'base': np.array([0.3 + np.random.randn(126) * 0.06 for _ in range(num_samples)]),
-            'description': 'Hands pressed together, moving down'
-        },
-        'YES': {
-            'base': np.array([0.5 + np.random.randn(126) * 0.07 for _ in range(num_samples)]),
-            'description': 'Fist moving up and down (nodding)'
-        },
-        'NO': {
-            'base': np.array([0.2 + np.random.randn(126) * 0.05 for _ in range(num_samples)]),
-            'description': 'Index and middle finger extended, shaking side to side'
-        },
-        'GOOD': {
-            'base': np.array([0.4 + np.random.randn(126) * 0.06 for _ in range(num_samples)]),
-            'description': 'Thumbs up pose'
-        },
-        'BAD': {
-            'base': np.array([0.7 + np.random.randn(126) * 0.07 for _ in range(num_samples)]),
-            'description': 'Thumbs down pose'
-        },
-        'LOVE': {
-            'base': np.array([0.6 + np.random.randn(126) * 0.06 for _ in range(num_samples)]),
-            'description': 'Cross fingers or heart shape with hands'
-        },
-        'HELP': {
-            'base': np.array([0.35 + np.random.randn(126) * 0.05 for _ in range(num_samples)]),
-            'description': 'One hand lifting other hand'
-        },
-    }
-    
-    if gesture_type not in gesture_patterns:
-        raise ValueError(f"Unknown gesture: {gesture_type}")
-    
-    return gesture_patterns[gesture_type]['base'], gesture_patterns[gesture_type]['description']
+
+    from utils import normalize_landmarks
+
+    samples = []
+    description = ""
+
+    for _ in range(num_samples):
+        vec = np.zeros(126, dtype=np.float32)
+
+        if gesture_type == 'HELLO':
+            pose = _create_hand_pose('open')
+            description = 'Open hand wave (Right hand)'
+            noise = np.random.normal(0, 0.03, pose.shape)
+            norm = normalize_landmarks(pose + noise)
+            vec[63:126] = norm  # Right hand in Slot 1
+
+        elif gesture_type == 'YES':
+            pose = _create_hand_pose('fist')
+            description = 'Fist nod (Right hand)'
+            noise = np.random.normal(0, 0.03, pose.shape)
+            norm = normalize_landmarks(pose + noise)
+            vec[63:126] = norm
+
+        elif gesture_type == 'NO':
+            pose = _create_hand_pose('index_middle')
+            description = 'Index & middle extended (Right hand)'
+            noise = np.random.normal(0, 0.03, pose.shape)
+            norm = normalize_landmarks(pose + noise)
+            vec[63:126] = norm
+
+        elif gesture_type == 'GOOD':
+            pose = _create_hand_pose('thumbs_up')
+            description = 'Thumbs up (Right hand)'
+            noise = np.random.normal(0, 0.03, pose.shape)
+            norm = normalize_landmarks(pose + noise)
+            vec[63:126] = norm
+
+        elif gesture_type == 'BAD':
+            pose = _create_hand_pose('thumbs_down')
+            description = 'Thumbs down (Right hand)'
+            noise = np.random.normal(0, 0.03, pose.shape)
+            norm = normalize_landmarks(pose + noise)
+            vec[63:126] = norm
+
+        elif gesture_type == 'THANKS':
+            pose_l = _create_hand_pose('open')
+            pose_r = _create_hand_pose('open')
+            description = 'Both hands open pressed/moving'
+            noise_l = np.random.normal(0, 0.03, pose_l.shape)
+            noise_r = np.random.normal(0, 0.03, pose_r.shape)
+            vec[0:63] = normalize_landmarks(pose_l + noise_l)   # Left hand
+            vec[63:126] = normalize_landmarks(pose_r + noise_r)  # Right hand
+
+        elif gesture_type == 'HELP':
+            pose_l = _create_hand_pose('fist')
+            pose_r = _create_hand_pose('thumbs_up')
+            description = 'Left fist supporting Right thumbs up'
+            noise_l = np.random.normal(0, 0.03, pose_l.shape)
+            noise_r = np.random.normal(0, 0.03, pose_r.shape)
+            vec[0:63] = normalize_landmarks(pose_l + noise_l)
+            vec[63:126] = normalize_landmarks(pose_r + noise_r)
+
+        elif gesture_type == 'LOVE':
+            pose_l = _create_hand_pose('thumbs_up')
+            pose_r = _create_hand_pose('thumbs_up')
+            description = 'Both hands forming love symbol'
+            noise_l = np.random.normal(0, 0.03, pose_l.shape)
+            noise_r = np.random.normal(0, 0.03, pose_r.shape)
+            vec[0:63] = normalize_landmarks(pose_l + noise_l)
+            vec[63:126] = normalize_landmarks(pose_r + noise_r)
+
+        else:
+            raise ValueError(f"Unknown gesture: {gesture_type}")
+
+        samples.append(vec)
+
+    return np.array(samples, dtype=np.float32), description
+
 
 def create_synthetic_dataset(output_csv, gestures=None, samples_per_gesture=300):
     """Create synthetic hand landmark dataset"""

@@ -32,8 +32,11 @@ def load_model():
             f"No trained recognition model at {MODEL_PATH}. "
             "Run collect_data.py + train_model.py first (Part 1 of the project)."
         )
-    bundle = joblib.load(MODEL_PATH)
-    return bundle["model"]
+    loaded = joblib.load(MODEL_PATH)
+    if isinstance(loaded, dict):
+        return loaded["model"]
+    return loaded
+
 
 
 def verify(output_path):

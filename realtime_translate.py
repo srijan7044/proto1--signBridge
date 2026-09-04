@@ -28,6 +28,7 @@ from collections import deque, Counter
 
 import cv2
 import joblib
+import numpy as np
 import pyttsx3
 
 from utils import create_hands_detector, extract_feature_vector, mp_drawing, mp_hands, mp_drawing_styles
@@ -41,8 +42,10 @@ STABILITY_THRESHOLD = 0.75
 # Minimum seconds between confirming the SAME sign twice in a row
 # (prevents "HELLO" from being added 10 times while you hold the pose)
 REPEAT_COOLDOWN = 1.2
-# Model confidence required to even consider a prediction
-MIN_CONFIDENCE = 0.55
+# Model confidence required to accept a prediction
+MIN_CONFIDENCE = 0.90
+# Required gap between the best and second-best class probabilities
+MIN_MARGIN = 0.10
 
 
 class TTSEngine:
@@ -58,11 +61,20 @@ class TTSEngine:
 
     def _speak_blocking(self, text):
         with self._lock:
-            engine = pyttsx3.init()
-            engine.setProperty("rate", 165)
-            engine.say(text)
-            engine.runAndWait()
-            engine.stop()
+            try:
+                import pythoncom
+                pythoncom.CoInitialize()
+            except Exception:
+                pass
+            try:
+                engine = pyttsx3.init()
+                engine.setProperty("rate", 165)
+                engine.say(text)
+                engine.runAndWait()
+                engine.stop()
+            except Exception as e:
+                print(f"TTS Engine warning: {e}")
+
 
 
 def load_model():
@@ -138,10 +150,18 @@ def main():
                     )
 
                 feats = extract_feature_vector(result.multi_hand_landmarks, result.multi_handedness)
-                probs = model.predict_proba([feats])[0]
-                best_idx = probs.argmax()
-                confidence = probs[best_idx]
-                if confidence >= MIN_CONFIDENCE:
+                # Never classify a zero-padded/no-hand vector.
+                if feats.any():
+                    probs = model.predict_proba([feats])[0]
+                    best_idx = probs.argmax()
+                    confidence = probs[best_idx]
+                    second_best = np.partition(probs, -2)[-2]
+                else:
+                    probs = []
+                    confidence = 0.0
+                    second_best = 1.0
+
+                if confidence > MIN_CONFIDENCE and confidence - second_best >= MIN_MARGIN:
                     # Get the predicted label safely
                     if hasattr(model, 'classes_'):
                         predicted_label = model.classes_[best_idx]
