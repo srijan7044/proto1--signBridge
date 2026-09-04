@@ -61,11 +61,20 @@ class TTSEngine:
 
     def _speak_blocking(self, text):
         with self._lock:
-            engine = pyttsx3.init()
-            engine.setProperty("rate", 165)
-            engine.say(text)
-            engine.runAndWait()
-            engine.stop()
+            try:
+                import pythoncom
+                pythoncom.CoInitialize()
+            except Exception:
+                pass
+            try:
+                engine = pyttsx3.init()
+                engine.setProperty("rate", 165)
+                engine.say(text)
+                engine.runAndWait()
+                engine.stop()
+            except Exception as e:
+                print(f"TTS Engine warning: {e}")
+
 
 
 def load_model():

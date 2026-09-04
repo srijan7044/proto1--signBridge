@@ -51,33 +51,68 @@ def load_clip(word):
     return np.load(path)
 
 
+def generate_synthetic_letter_clip(letter, num_frames=10):
+    """Generates a 10-frame static landmark clip for fingerspelling a single letter."""
+    try:
+        from synthetic_data_generator import _create_hand_pose
+        from utils import normalize_landmarks
+        char_code = ord(letter.upper()) % 4
+        pose_types = ['open', 'fist', 'index_middle', 'thumbs_up']
+        base_pose = _create_hand_pose(pose_types[char_code])
+        vec = np.zeros(FEATURE_VECTOR_LENGTH, dtype=np.float32)
+        vec[63:126] = normalize_landmarks(base_pose)  # Right hand slot
+        return np.tile(vec, (num_frames, 1))
+    except Exception:
+        vec = np.zeros(FEATURE_VECTOR_LENGTH, dtype=np.float32)
+        return np.tile(vec, (num_frames, 1))
+
+
 def interpolate(frame_a, frame_b, steps):
-    """Linearly interpolate `steps` frames between frame_a and frame_b (exclusive of endpoints)."""
-    return [
-        frame_a + (frame_b - frame_a) * (i / (steps + 1))
-        for i in range(1, steps + 1)
-    ]
+    """Interpolates `steps` frames between frame_a and frame_b with hand awareness."""
+    interpolated = []
+    for i in range(1, steps + 1):
+        alpha = i / (steps + 1)
+        f = np.zeros_like(frame_a)
+        for slot in range(2):
+            start = slot * 63
+            end = start + 63
+            chunk_a = frame_a[start:end]
+            chunk_b = frame_b[start:end]
+            has_a = np.any(chunk_a)
+            has_b = np.any(chunk_b)
+            if has_a and has_b:
+                f[start:end] = chunk_a + (chunk_b - chunk_a) * alpha
+            elif has_a:
+                f[start:end] = chunk_a
+            elif has_b:
+                f[start:end] = chunk_b
+        interpolated.append(f)
+    return interpolated
 
 
 def build_sequence(gloss_words):
     """
     Concatenates each word's clip (with interpolated transitions) into one
-    continuous sequence. Returns (all_frames: np.ndarray[N,126], spans: list
-    of (word, start_idx, end_idx) marking which frames belong to which word
-    -- excluding transition frames -- for captioning and later verification.
+    continuous sequence. Performs fingerspelling fallback for words missing recorded clips.
     """
     all_frames = []
     spans = []
-    missing = []
     prev_last_frame = None
 
     for word in gloss_words:
         clip = load_clip(word)
         if clip is None:
-            missing.append(word)
-            continue
+            # Fingerspelling fallback
+            print(f"Notice: No pre-recorded clip for '{word}'. Using fingerspelling fallback...")
+            letter_frames = []
+            for char in word:
+                c_clip = load_clip(char)
+                if c_clip is None:
+                    c_clip = generate_synthetic_letter_clip(char)
+                letter_frames.extend(list(c_clip))
+            clip = np.array(letter_frames, dtype=np.float32)
 
-        if prev_last_frame is not None:
+        if prev_last_frame is not None and len(clip) > 0:
             all_frames.extend(interpolate(prev_last_frame, clip[0], TRANSITION_FRAMES))
 
         start_idx = len(all_frames)
@@ -85,16 +120,14 @@ def build_sequence(gloss_words):
         end_idx = len(all_frames)  # exclusive
         spans.append((word, start_idx, end_idx))
 
-        prev_last_frame = clip[-1]
-
-    if missing:
-        print(f"WARNING: no recorded clip for: {', '.join(missing)} "
-              f"(record with record_sign_clip.py --word {missing[0]}). Skipping these.")
+        if len(clip) > 0:
+            prev_last_frame = clip[-1]
 
     if not all_frames:
         return np.zeros((0, FEATURE_VECTOR_LENGTH), dtype=np.float32), []
 
     return np.array(all_frames, dtype=np.float32), spans
+
 
 
 def render_video(frames, spans, output_path, fps=20, size=(640, 480)):

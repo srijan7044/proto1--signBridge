@@ -126,5 +126,33 @@ def predict():
         return jsonify({"error": "Prediction failed. Try a clearer image."}), 500
 
 
+@app.post("/api/text-to-sign")
+def text_to_sign_api():
+    data = request.get_json() or {}
+    sentence = data.get("sentence", "").strip()
+    if not sentence:
+        return jsonify({"error": "Please enter or speak a sentence."}), 400
+
+    try:
+        from text_to_sign import sentence_to_gloss, build_sequence
+        gloss = sentence_to_gloss(sentence)
+        frames, spans = build_sequence(gloss)
+        
+        frames_list = frames.tolist() if len(frames) > 0 else []
+        spans_list = [{"word": w, "start": int(s), "end": int(e)} for w, s, e in spans]
+        
+        return jsonify({
+            "sentence": sentence,
+            "gloss": gloss,
+            "num_frames": len(frames_list),
+            "frames": frames_list,
+            "spans": spans_list
+        })
+    except Exception as e:
+        app.logger.exception("Text-to-sign generation failed")
+        return jsonify({"error": f"Generation failed: {e}"}), 500
+
+
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=False)
+
