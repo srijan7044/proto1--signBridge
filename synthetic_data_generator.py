@@ -53,13 +53,11 @@ def _create_hand_pose(pose_type):
     pts[20] = [0.45, -1.0, 0.0]    # Pinky Tip
 
     if pose_type == 'fist':
-        # Curl all fingers toward palm
         for base in [5, 9, 13, 17]:
             pts[base + 1][1] = -0.4
             pts[base + 2][1] = -0.2
             pts[base + 3][1] = -0.1
     elif pose_type == 'thumbs_up':
-        # Curl index, middle, ring, pinky, extend thumb up
         for base in [5, 9, 13, 17]:
             pts[base + 1][1] = -0.4
             pts[base + 2][1] = -0.2
@@ -71,12 +69,34 @@ def _create_hand_pose(pose_type):
             pts[base + 2][1] = -0.2
             pts[base + 3][1] = -0.1
         pts[4] = [-0.3, 0.8, 0.0]
+    elif pose_type == 'index_only':
+        for base in [9, 13, 17]:
+            pts[base + 1][1] = -0.4
+            pts[base + 2][1] = -0.2
+            pts[base + 3][1] = -0.1
     elif pose_type == 'index_middle':
-        # Extend index and middle, curl ring and pinky
         for base in [13, 17]:
             pts[base + 1][1] = -0.4
             pts[base + 2][1] = -0.2
             pts[base + 3][1] = -0.1
+    elif pose_type == 'w_hand':
+        for base in [17]:
+            pts[base + 1][1] = -0.4
+            pts[base + 2][1] = -0.2
+            pts[base + 3][1] = -0.1
+        pts[4] = [0.0, -0.4, 0.0]
+    elif pose_type == 'ily_hand':
+        for base in [9, 13]:
+            pts[base + 1][1] = -0.4
+            pts[base + 2][1] = -0.2
+            pts[base + 3][1] = -0.1
+        pts[4] = [-0.6, -0.8, 0.0]
+    elif pose_type == 'flat_o':
+        for base in [5, 9, 13, 17]:
+            pts[base + 1][1] = -0.5
+            pts[base + 2][1] = -0.6
+            pts[base + 3][1] = -0.5
+        pts[4] = [-0.1, -0.5, 0.0]
 
     return pts
 
@@ -100,64 +120,180 @@ def generate_hand_landmarks(gesture_type, num_samples=300, seed=None):
         if gesture_type == 'HELLO':
             pose = _create_hand_pose('open')
             description = 'Open hand wave (Right hand)'
-            noise = np.random.normal(0, 0.03, pose.shape)
-            norm = normalize_landmarks(pose + noise)
-            vec[63:126] = norm  # Right hand in Slot 1
+            noise = np.random.normal(0, 0.02, pose.shape)
+            vec[63:126] = normalize_landmarks(pose + noise)
+
+        elif gesture_type == 'GOODBYE':
+            pose = _create_hand_pose('open')
+            pose[4] = [-0.1, -0.4, 0.0] # Folded thumb
+            description = 'Open hand waving with folded thumb'
+            noise = np.random.normal(0, 0.02, pose.shape)
+            vec[63:126] = normalize_landmarks(pose + noise)
 
         elif gesture_type == 'YES':
             pose = _create_hand_pose('fist')
             description = 'Fist nod (Right hand)'
-            noise = np.random.normal(0, 0.03, pose.shape)
-            norm = normalize_landmarks(pose + noise)
-            vec[63:126] = norm
+            noise = np.random.normal(0, 0.02, pose.shape)
+            vec[63:126] = normalize_landmarks(pose + noise)
 
         elif gesture_type == 'NO':
             pose = _create_hand_pose('index_middle')
             description = 'Index & middle extended (Right hand)'
-            noise = np.random.normal(0, 0.03, pose.shape)
-            norm = normalize_landmarks(pose + noise)
-            vec[63:126] = norm
+            noise = np.random.normal(0, 0.02, pose.shape)
+            vec[63:126] = normalize_landmarks(pose + noise)
 
         elif gesture_type == 'GOOD':
             pose = _create_hand_pose('thumbs_up')
             description = 'Thumbs up (Right hand)'
-            noise = np.random.normal(0, 0.03, pose.shape)
-            norm = normalize_landmarks(pose + noise)
-            vec[63:126] = norm
+            noise = np.random.normal(0, 0.02, pose.shape)
+            vec[63:126] = normalize_landmarks(pose + noise)
 
         elif gesture_type == 'BAD':
             pose = _create_hand_pose('thumbs_down')
             description = 'Thumbs down (Right hand)'
-            noise = np.random.normal(0, 0.03, pose.shape)
-            norm = normalize_landmarks(pose + noise)
-            vec[63:126] = norm
+            noise = np.random.normal(0, 0.02, pose.shape)
+            vec[63:126] = normalize_landmarks(pose + noise)
+
+        elif gesture_type == 'LOVE':
+            pose_l = _create_hand_pose('ily_hand')
+            pose_r = _create_hand_pose('ily_hand')
+            description = 'Both hands forming ILY sign'
+            noise_l = np.random.normal(0, 0.02, pose_l.shape)
+            noise_r = np.random.normal(0, 0.02, pose_r.shape)
+            vec[0:63] = normalize_landmarks(pose_l + noise_l)
+            vec[63:126] = normalize_landmarks(pose_r + noise_r)
+
+        elif gesture_type == 'PLEASE':
+            pose = _create_hand_pose('flat_o')
+            description = 'Flat O hand circular chest motion'
+            noise = np.random.normal(0, 0.02, pose.shape)
+            vec[63:126] = normalize_landmarks(pose + noise)
+
+        elif gesture_type == 'SORRY':
+            pose = _create_hand_pose('fist')
+            pose[:, 0] += 0.4
+            description = 'Fist circular chest motion'
+            noise = np.random.normal(0, 0.02, pose.shape)
+            vec[63:126] = normalize_landmarks(pose + noise)
 
         elif gesture_type == 'THANKS':
             pose_l = _create_hand_pose('open')
             pose_r = _create_hand_pose('open')
             description = 'Both hands open pressed/moving'
-            noise_l = np.random.normal(0, 0.03, pose_l.shape)
-            noise_r = np.random.normal(0, 0.03, pose_r.shape)
-            vec[0:63] = normalize_landmarks(pose_l + noise_l)   # Left hand
-            vec[63:126] = normalize_landmarks(pose_r + noise_r)  # Right hand
+            noise_l = np.random.normal(0, 0.02, pose_l.shape)
+            noise_r = np.random.normal(0, 0.02, pose_r.shape)
+            vec[0:63] = normalize_landmarks(pose_l + noise_l)
+            vec[63:126] = normalize_landmarks(pose_r + noise_r)
+
+        elif gesture_type == 'WELCOME':
+            pose = _create_hand_pose('open')
+            pose[:, 0] += 0.6 # Distinct 45deg tilt
+            description = 'Open hand sweeping inward'
+            noise = np.random.normal(0, 0.02, pose.shape)
+            vec[63:126] = normalize_landmarks(pose + noise)
+
 
         elif gesture_type == 'HELP':
             pose_l = _create_hand_pose('fist')
             pose_r = _create_hand_pose('thumbs_up')
             description = 'Left fist supporting Right thumbs up'
-            noise_l = np.random.normal(0, 0.03, pose_l.shape)
-            noise_r = np.random.normal(0, 0.03, pose_r.shape)
+            noise_l = np.random.normal(0, 0.02, pose_l.shape)
+            noise_r = np.random.normal(0, 0.02, pose_r.shape)
             vec[0:63] = normalize_landmarks(pose_l + noise_l)
             vec[63:126] = normalize_landmarks(pose_r + noise_r)
 
-        elif gesture_type == 'LOVE':
-            pose_l = _create_hand_pose('thumbs_up')
-            pose_r = _create_hand_pose('thumbs_up')
-            description = 'Both hands forming love symbol'
-            noise_l = np.random.normal(0, 0.03, pose_l.shape)
-            noise_r = np.random.normal(0, 0.03, pose_r.shape)
+        elif gesture_type == 'WATER':
+            pose = _create_hand_pose('w_hand')
+            description = 'W-hand shape touching chin'
+            noise = np.random.normal(0, 0.02, pose.shape)
+            vec[63:126] = normalize_landmarks(pose + noise)
+
+        elif gesture_type == 'FOOD':
+            pose = _create_hand_pose('flat_o')
+            description = 'Flat fingers to mouth'
+            noise = np.random.normal(0, 0.02, pose.shape)
+            vec[63:126] = normalize_landmarks(pose + noise)
+
+        elif gesture_type == 'HAPPY':
+            pose_l = _create_hand_pose('open')
+            pose_r = _create_hand_pose('open')
+            pose_l[:, 1] -= 0.3
+            pose_r[:, 1] -= 0.3
+            description = 'Both hands patting chest upward'
+            noise_l = np.random.normal(0, 0.02, pose_l.shape)
+            noise_r = np.random.normal(0, 0.02, pose_r.shape)
             vec[0:63] = normalize_landmarks(pose_l + noise_l)
             vec[63:126] = normalize_landmarks(pose_r + noise_r)
+
+        elif gesture_type == 'SAD':
+            pose = _create_hand_pose('open')
+            pose[:, 1] += 0.5
+            description = 'Open hand moving down face'
+            noise = np.random.normal(0, 0.02, pose.shape)
+            vec[63:126] = normalize_landmarks(pose + noise)
+
+        elif gesture_type == 'WHAT':
+            pose_l = _create_hand_pose('open')
+            pose_r = _create_hand_pose('open')
+            pose_l[:, 0] -= 0.2
+            pose_r[:, 0] += 0.2
+            description = 'Palms up shaking'
+            noise_l = np.random.normal(0, 0.02, pose_l.shape)
+            noise_r = np.random.normal(0, 0.02, pose_r.shape)
+            vec[0:63] = normalize_landmarks(pose_l + noise_l)
+            vec[63:126] = normalize_landmarks(pose_r + noise_r)
+
+        elif gesture_type == 'WHERE':
+            pose = _create_hand_pose('index_only')
+            description = 'Index finger shaking side to side'
+            noise = np.random.normal(0, 0.02, pose.shape)
+            vec[63:126] = normalize_landmarks(pose + noise)
+
+        elif gesture_type == 'NAME':
+            pose_l = _create_hand_pose('index_middle')
+            pose_r = _create_hand_pose('index_middle')
+            pose_l[:, 0] -= 0.1
+            pose_r[:, 0] += 0.1
+            description = 'H-hands tapping'
+            noise_l = np.random.normal(0, 0.02, pose_l.shape)
+            noise_r = np.random.normal(0, 0.02, pose_r.shape)
+            vec[0:63] = normalize_landmarks(pose_l + noise_l)
+            vec[63:126] = normalize_landmarks(pose_r + noise_r)
+
+        elif gesture_type == 'FRIEND':
+            pose_l = _create_hand_pose('index_only')
+            pose_r = _create_hand_pose('index_only')
+            description = 'Interlocking index fingers'
+            noise_l = np.random.normal(0, 0.02, pose_l.shape)
+            noise_r = np.random.normal(0, 0.02, pose_r.shape)
+            vec[0:63] = normalize_landmarks(pose_l + noise_l)
+            vec[63:126] = normalize_landmarks(pose_r + noise_r)
+
+        elif gesture_type == 'WORK':
+            pose_l = _create_hand_pose('fist')
+            pose_r = _create_hand_pose('fist')
+            pose_l[:, 1] += 0.2
+            description = 'Fists tapping wrists'
+            noise_l = np.random.normal(0, 0.02, pose_l.shape)
+            noise_r = np.random.normal(0, 0.02, pose_r.shape)
+            vec[0:63] = normalize_landmarks(pose_l + noise_l)
+            vec[63:126] = normalize_landmarks(pose_r + noise_r)
+
+        elif gesture_type == 'TIME':
+            pose_l = _create_hand_pose('fist')
+            pose_r = _create_hand_pose('index_only')
+            description = 'Index finger tapping wrist'
+            noise_l = np.random.normal(0, 0.02, pose_l.shape)
+            noise_r = np.random.normal(0, 0.02, pose_r.shape)
+            vec[0:63] = normalize_landmarks(pose_l + noise_l)
+            vec[63:126] = normalize_landmarks(pose_r + noise_r)
+
+        elif gesture_type == 'NEED':
+            pose = _create_hand_pose('index_only')
+            pose[:, 1] += 0.3
+            description = 'Curved finger dropping downward'
+            noise = np.random.normal(0, 0.02, pose.shape)
+            vec[63:126] = normalize_landmarks(pose + noise)
 
         else:
             raise ValueError(f"Unknown gesture: {gesture_type}")
@@ -167,11 +303,18 @@ def generate_hand_landmarks(gesture_type, num_samples=300, seed=None):
     return np.array(samples, dtype=np.float32), description
 
 
+
 def create_synthetic_dataset(output_csv, gestures=None, samples_per_gesture=300):
     """Create synthetic hand landmark dataset"""
     
     if gestures is None:
-        gestures = ['HELLO', 'THANKS', 'YES', 'NO', 'GOOD', 'BAD', 'LOVE', 'HELP']
+        gestures = [
+            'HELLO', 'GOODBYE', 'THANKS', 'PLEASE', 'SORRY', 'WELCOME',
+            'YES', 'NO', 'GOOD', 'BAD', 'LOVE', 'HELP',
+            'WATER', 'FOOD', 'HAPPY', 'SAD', 'WHAT', 'WHERE',
+            'NAME', 'FRIEND', 'WORK', 'TIME', 'NEED'
+        ]
+
     
     print("=" * 70)
     print("GENERATING SYNTHETIC HAND GESTURE DATA")

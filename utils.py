@@ -100,32 +100,36 @@ def extract_feature_vector(multi_hand_landmarks, multi_handedness=None):
 
 
 
-def draw_skeleton(canvas, feature_vector, scale=140, color=(0, 255, 255), thickness=2):
+def draw_skeleton(canvas, feature_vector, scale=110, color=(0, 255, 255), thickness=2):
     """
     Draws hand skeleton(s) from a normalized 126-length feature vector onto
-    an existing image (canvas), IN PLACE. Used to visualize/render
-    generated sign sequences (as opposed to mp_drawing.draw_landmarks,
-    which only works on live MediaPipe detection results).
-
-    Hand 1 (indices 0-62) is drawn offset to the left of center; hand 2
-    (indices 63-125) offset to the right, so two hands don't overlap.
+    an existing image (canvas), IN PLACE. Anchors wrist at h * 0.72 so fingers
+    extending upward (negative Y) center nicely in the viewport.
     """
-    import cv2  # local import keeps utils.py importable without cv2 for non-drawing use
+    import cv2
 
     h, w = canvas.shape[:2]
-    center_y = h // 2
-    offsets = [(-w // 4, 0), (w // 4, 0)]
+    wrist_y = int(h * 0.72)
+
+    has_left = np.any(feature_vector[0:63])
+    has_right = np.any(feature_vector[63:126])
+
+    offsets = [(-w // 6, 0), (w // 6, 0)]
+    if not has_left and has_right:
+        offsets[1] = (0, 0)
+    elif has_left and not has_right:
+        offsets[0] = (0, 0)
 
     for slot in range(MAX_HANDS):
         start = slot * FEATURES_PER_HAND
         chunk = feature_vector[start:start + FEATURES_PER_HAND]
         if not np.any(chunk):
-            continue  # this hand slot is empty/zero-padded, nothing to draw
+            continue
 
         pts = chunk.reshape(NUM_LANDMARKS, 3)
         ox, oy = offsets[slot]
         pixel_pts = [
-            (int(w // 2 + ox + x * scale), int(center_y + oy + y * scale))
+            (int(w // 2 + ox + x * scale), int(wrist_y + oy + y * scale))
             for x, y, _ in pts
         ]
 
@@ -135,3 +139,4 @@ def draw_skeleton(canvas, feature_vector, scale=140, color=(0, 255, 255), thickn
             cv2.circle(canvas, (x, y), 3, (255, 255, 255), -1)
 
     return canvas
+

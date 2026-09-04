@@ -130,7 +130,11 @@ async function predictFrame(blob) {
   }
 }
 
-startCamera.addEventListener("click", async () => {
+const cameraPowerBtn = document.querySelector("#camera-power-btn");
+const cameraOffOverlay = document.querySelector("#camera-off-overlay");
+let isCameraOn = false;
+
+async function turnCameraOn() {
   clearError();
   try {
     cameraStream = await navigator.mediaDevices.getUserMedia({
@@ -138,15 +142,75 @@ startCamera.addEventListener("click", async () => {
       audio: false,
     });
     camera.srcObject = cameraStream;
+    camera.hidden = false;
+    camera.style.display = "block";
+    await camera.play();
+
+    if (cameraOffOverlay) {
+      cameraOffOverlay.hidden = true;
+      cameraOffOverlay.style.display = "none";
+    }
+
+    camera.onloadedmetadata = () => {
+      cameraStatus.textContent = `Camera Active (${camera.videoWidth}x${camera.videoHeight})`;
+      cameraStatus.className = "status-badge status-online";
+    };
+
+    isCameraOn = true;
     capture.disabled = false;
     toggleRealtime.disabled = false;
     cameraStatus.textContent = "Camera Active";
     cameraStatus.className = "status-badge status-online";
-    startCamera.textContent = "🎥 Camera Connected";
+
+    cameraPowerBtn.textContent = "🟢 Turn Camera OFF";
+    cameraPowerBtn.className = "power-button power-on";
   } catch (error) {
-    showError("Camera access denied or unavailable. You can use image upload instead.");
+    showError("Camera access denied or unavailable: " + error.message);
+    turnCameraOff();
+  }
+}
+
+function turnCameraOff() {
+  if (isRealtimeActive) {
+    isRealtimeActive = false;
+    clearInterval(realtimeInterval);
+    toggleRealtime.textContent = "⚡ Live Auto-Recognize: OFF";
+    toggleRealtime.classList.remove("primary-button");
+    toggleRealtime.classList.add("secondary-button");
+  }
+
+  if (cameraStream) {
+    cameraStream.getTracks().forEach((track) => track.stop());
+    cameraStream = null;
+  }
+
+  camera.srcObject = null;
+  camera.hidden = true;
+  camera.style.display = "none";
+  if (cameraOffOverlay) {
+    cameraOffOverlay.hidden = false;
+    cameraOffOverlay.style.display = "flex";
+  }
+
+  isCameraOn = false;
+  capture.disabled = true;
+  toggleRealtime.disabled = true;
+  cameraStatus.textContent = "Camera OFF";
+  cameraStatus.className = "status-badge status-offline";
+
+  cameraPowerBtn.textContent = "🔴 Turn Camera ON";
+  cameraPowerBtn.className = "power-button power-off";
+}
+
+
+cameraPowerBtn.addEventListener("click", () => {
+  if (isCameraOn) {
+    turnCameraOff();
+  } else {
+    turnCameraOn();
   }
 });
+
 
 toggleRealtime.addEventListener("click", () => {
   isRealtimeActive = !isRealtimeActive;
@@ -155,11 +219,15 @@ toggleRealtime.addEventListener("click", () => {
     toggleRealtime.classList.add("primary-button");
     toggleRealtime.classList.remove("secondary-button");
     realtimeInterval = setInterval(() => {
-      if (!camera.videoWidth) return;
-      cameraCanvas.width = camera.videoWidth;
-      cameraCanvas.height = camera.videoHeight;
-      cameraCanvas.getContext("2d").drawImage(camera, 0, 0);
-      cameraCanvas.toBlob((blob) => predictFrame(blob), "image/jpeg", 0.85);
+      const w = camera.videoWidth || 640;
+      const h = camera.videoHeight || 480;
+      cameraCanvas.width = w;
+      cameraCanvas.height = h;
+      const ctx = cameraCanvas.getContext("2d");
+      ctx.drawImage(camera, 0, 0, w, h);
+      cameraCanvas.toBlob((blob) => {
+        if (blob) predictFrame(blob);
+      }, "image/jpeg", 0.85);
     }, 400);
   } else {
     toggleRealtime.textContent = "⚡ Live Auto-Recognize: OFF";
@@ -170,11 +238,29 @@ toggleRealtime.addEventListener("click", () => {
 });
 
 capture.addEventListener("click", () => {
-  if (!camera.videoWidth) return;
-  cameraCanvas.width = camera.videoWidth;
-  cameraCanvas.height = camera.videoHeight;
-  cameraCanvas.getContext("2d").drawImage(camera, 0, 0);
-  cameraCanvas.toBlob((blob) => predictFrame(blob), "image/jpeg", 0.92);
+  clearError();
+  if (!cameraStream || !camera.srcObject) {
+    return showError("Please start the camera first by clicking 'Start Camera'.");
+  }
+
+  const w = camera.videoWidth || 640;
+  const h = camera.videoHeight || 480;
+  cameraCanvas.width = w;
+  cameraCanvas.height = h;
+  const ctx = cameraCanvas.getContext("2d");
+  ctx.drawImage(camera, 0, 0, w, h);
+
+  result.textContent = "Capturing & Analyzing...";
+  confidence.textContent = "Processing frame...";
+
+  cameraCanvas.toBlob(
+    (blob) => {
+      if (!blob) return showError("Failed to capture image frame from camera.");
+      predictFrame(blob);
+    },
+    "image/jpeg",
+    0.95
+  );
 });
 
 upload.addEventListener("change", (event) => {
@@ -220,43 +306,82 @@ document.querySelectorAll(".phrase-chip").forEach((chip) => {
 });
 
 // Web Speech API Voice Input
+let isListening = false;
+
 if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   speechRecognition = new SpeechRecognition();
   speechRecognition.continuous = false;
-  speechRecognition.interimResults = false;
+  speechRecognition.interimResults = true;
   speechRecognition.lang = "en-US";
 
   speechRecognition.onstart = () => {
+    isListening = true;
     micBtn.classList.add("listening");
-    micBtn.textContent = "🎙️ Listening...";
+    micBtn.textContent = "🎙️ Listening... Speak now!";
+    clearError();
   };
 
   speechRecognition.onresult = (event) => {
-    const transcript = event.results[0][0].transcript;
+    let transcript = "";
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      transcript += event.results[i][0].transcript;
+    }
     ttsInput.value = transcript;
-    generateSignAnimation(transcript);
+    if (event.results[0].isFinal && transcript.trim()) {
+      generateSignAnimation(transcript);
+    }
   };
 
   speechRecognition.onerror = (event) => {
-    showError(`Voice recognition error: ${event.error}`);
+    console.warn("Speech recognition error:", event.error);
+    isListening = false;
     micBtn.classList.remove("listening");
     micBtn.textContent = "🎤 Voice Input";
+
+    if (event.error === "network") {
+      showError(
+        "Voice Input Network Error: Chrome's voice recognition requires an active internet connection. " +
+        "Please check your connection/VPN, or type your message directly into the text box below!"
+      );
+      ttsInput.focus();
+    } else if (event.error === "not-allowed" || event.error === "permission-denied") {
+      showError("Microphone permission was denied. Please allow microphone access in your browser location bar.");
+    } else if (event.error === "no-speech") {
+      showError("No speech detected. Please try clicking 'Voice Input' again and speak clearly.");
+    } else if (event.error === "aborted") {
+      // User or system stopped listening silently
+    } else {
+      showError(`Voice input error (${event.error}). Please type your sentence in the box.`);
+    }
   };
 
   speechRecognition.onend = () => {
+    isListening = false;
     micBtn.classList.remove("listening");
     micBtn.textContent = "🎤 Voice Input";
   };
 
   micBtn.addEventListener("click", () => {
     clearError();
-    speechRecognition.start();
+    if (isListening) {
+      speechRecognition.stop();
+    } else {
+      try {
+        speechRecognition.start();
+      } catch (err) {
+        console.warn("Speech recognition start issue:", err);
+      }
+    }
   });
 } else {
-  micBtn.disabled = true;
-  micBtn.title = "Speech recognition not supported in this browser";
+  micBtn.addEventListener("click", () => {
+    showError("Speech recognition is not supported in this browser. Please type your message into the text box below.");
+    ttsInput.focus();
+  });
 }
+
+
 
 generateSignBtn.addEventListener("click", () => {
   generateSignAnimation(ttsInput.value);
@@ -318,8 +443,18 @@ function drawFrame(frameVector) {
 
   if (!frameVector || frameVector.length < 126) return;
 
-  const offsets = [[w * 0.3, h * 0.5], [w * 0.7, h * 0.5]]; // Left hand (0.3), Right hand (0.7)
-  const scale = 160;
+  const hasLeft = frameVector.slice(0, 63).some((v) => Math.abs(v) > 1e-4);
+  const hasRight = frameVector.slice(63, 126).some((v) => Math.abs(v) > 1e-4);
+
+  // Position wrist anchor at h * 0.72 so fingers extending upward (negative Y) center nicely
+  let offsets = [[w * 0.35, h * 0.72], [w * 0.65, h * 0.72]];
+  if (!hasLeft && hasRight) {
+    offsets[1] = [w * 0.5, h * 0.72];
+  } else if (hasLeft && !hasRight) {
+    offsets[0] = [w * 0.5, h * 0.72];
+  }
+
+  const scale = 110;
 
   for (let slot = 0; slot < 2; slot++) {
     const start = slot * 63;
@@ -338,7 +473,7 @@ function drawFrame(frameVector) {
 
     // Draw Skeleton Connections
     ctx.strokeStyle = slot === 0 ? "#38bdf8" : "#818cf8";
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 3.5;
     HAND_CONNECTIONS.forEach(([a, b]) => {
       ctx.beginPath();
       ctx.moveTo(points[a].x, points[a].y);
@@ -349,7 +484,7 @@ function drawFrame(frameVector) {
     // Draw Joint Circles
     points.forEach((pt) => {
       ctx.beginPath();
-      ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
+      ctx.arc(pt.x, pt.y, 4.5, 0, Math.PI * 2);
       ctx.fillStyle = "#ffffff";
       ctx.fill();
     });
@@ -365,6 +500,7 @@ function drawFrame(frameVector) {
   }
   canvasCaption.textContent = currentWord || "Sign Language";
 }
+
 
 function startAnimationPlayback() {
   animPlaying = true;
