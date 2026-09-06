@@ -18,10 +18,11 @@ from sklearn.metrics import classification_report
 
 from sklearn.ensemble import RandomForestClassifier
 
-# Replace your standard RandomForestClassifier with this balanced config:
+# Configure Random Forest to balance class weights automatically
 clf = RandomForestClassifier(
     n_estimators=300,
-    class_weight='balanced',  # Fixes the 60 vs 14 sample imbalance
+    class_weight="balanced",  # Equalizes weights between 60-sample words & 14-sample letters
+    max_depth=25,
     random_state=42,
     n_jobs=-1
 )

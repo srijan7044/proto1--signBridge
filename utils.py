@@ -17,15 +17,15 @@ mp_drawing_styles = mp.solutions.drawing_styles
 
 # Number of (x, y, z) landmarks MediaPipe returns per hand
 NUM_LANDMARKS = 21
-# Features per hand after normalization (we drop z variance issues by keeping x,y,z -> 63)
+# Features per hand after normalization (x, y, z -> 63)
 FEATURES_PER_HAND = NUM_LANDMARKS * 3
-# We support up to 2 hands -> fixed-length feature vector (zeros if a hand is absent)
+# Support up to 2 hands -> fixed-length feature vector (126)
 MAX_HANDS = 2
 FEATURE_VECTOR_LENGTH = FEATURES_PER_HAND * MAX_HANDS
 
 
 def create_hands_detector(static_image_mode=False, max_num_hands=2,
-                           min_detection_confidence=0.6, min_tracking_confidence=0.5):
+                          min_detection_confidence=0.6, min_tracking_confidence=0.5):
     """Factory so every script configures MediaPipe Hands identically."""
     return mp_hands.Hands(
         static_image_mode=static_image_mode,
@@ -37,14 +37,12 @@ def create_hands_detector(static_image_mode=False, max_num_hands=2,
 
 def normalize_landmarks(landmark_list):
     """
-    Takes a list of 21 (x, y, z) tuples for ONE hand (raw MediaPipe output,
-    values in [0, 1] relative to the image frame) and returns a normalized,
+    Takes a list of 21 (x, y, z) tuples for ONE hand and returns a 
     translation- and scale-invariant flat numpy array of length 63.
 
     Steps:
       1. Translate so the wrist (landmark 0) is the origin.
-      2. Scale by palm length (wrist landmark 0 -> middle finger MCP landmark 9)
-         so representation is anatomically invariant regardless of fist/open posture.
+      2. Scale by palm length (wrist 0 -> middle finger MCP 9).
     """
     pts = np.array(landmark_list, dtype=np.float32)  # shape (21, 3)
     wrist = pts[0].copy()
@@ -65,8 +63,7 @@ def normalize_landmarks(landmark_list):
 def extract_feature_vector(multi_hand_landmarks, multi_handedness=None):
     """
     Builds a FIXED-LENGTH feature vector (length 126) from MediaPipe's
-    detection result for a single frame, regardless of whether 0, 1, or 2
-    hands are visible. Missing hands are zero-padded.
+    detection result for a single frame.
 
     Strict Hand Slot Assignment:
       - Slot 0 (features 0..62): Left hand
@@ -99,12 +96,10 @@ def extract_feature_vector(multi_hand_landmarks, multi_handedness=None):
     return vector
 
 
-
 def draw_skeleton(canvas, feature_vector, scale=110, color=(0, 255, 255), thickness=2):
     """
     Draws hand skeleton(s) from a normalized 126-length feature vector onto
-    an existing image (canvas), IN PLACE. Anchors wrist at h * 0.72 so fingers
-    extending upward (negative Y) center nicely in the viewport.
+    an existing image canvas IN PLACE.
     """
     import cv2
 
@@ -139,4 +134,3 @@ def draw_skeleton(canvas, feature_vector, scale=110, color=(0, 255, 255), thickn
             cv2.circle(canvas, (x, y), 3, (255, 255, 255), -1)
 
     return canvas
-
