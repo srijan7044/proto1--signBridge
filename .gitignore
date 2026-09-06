@@ -6,4 +6,5 @@ __pycache__/
 # Ignore raw image dataset directories inside data/
 data/asl_dataset/
 data/Indian Sign Language Alphabet Dataset/
+data/a_to_h/
 model/*.joblib
