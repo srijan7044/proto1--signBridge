@@ -78,7 +78,7 @@ NESTED_DIR = os.path.join(BASE_DIR, "dataset - Gesture Speech")
 
 # Point to nested dir if present, otherwise base dir
 DATASET_DIR = NESTED_DIR if os.path.exists(NESTED_DIR) else BASE_DIR
-OUTPUT_CSV = os.path.join("data", "gestures_letters_2.csv")
+OUTPUT_CSV = os.path.join("data", "gestures_letters_q.csv")
 
 # Initialize detector using shared factory config
 hands = create_hands_detector(static_image_mode=True, min_detection_confidence=0.4)
