@@ -28,7 +28,7 @@ clf = RandomForestClassifier(
 )
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
-CSV_PATH = os.path.join(DATA_DIR, "gestures_combined.csv")
+CSV_PATH = os.path.join(DATA_DIR, "gestures_letters_1.csv")
 MODEL_DIR = os.path.join(os.path.dirname(__file__), "model")
 MODEL_PATH = os.path.join(MODEL_DIR, "sign_classifier.joblib")
 
