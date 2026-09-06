@@ -1,19 +1,8 @@
 """
 text_to_sign.py
 
-Converts a text sentence into a rendered sign-language animation by:
-  1. Reducing the sentence to a simplified "gloss" (key content words,
-     stopwords removed).
-  2. Looking up each gloss word's recorded motion clip in sign_clips/.
-  3. Concatenating clips with smooth interpolated transitions.
-  4. Rendering the full landmark sequence as a stick-figure video.
-
-USAGE:
-    python text_to_sign.py --sentence "Hello, thank you" --output out.mp4
-
-Requires clips recorded with record_sign_clip.py for every word you want
-to sign (missing words are skipped with a warning -- see README for how
-to handle that, e.g. fingerspelling fallback).
+Converts a text sentence into a rendered sign-language animation.
+Falls back to gestures_letters_1.csv landmark data for fingerspelling letters.
 """
 
 import argparse
@@ -22,37 +11,64 @@ import re
 
 import cv2
 import numpy as np
+import pandas as pd
 
 from utils import draw_skeleton, FEATURE_VECTOR_LENGTH
 
-CLIPS_DIR = os.path.join(os.path.dirname(__file__), "sign_clips")
+BASE_DIR = os.path.dirname(__file__)
+CLIPS_DIR = os.path.join(BASE_DIR, "sign_clips")
+CSV_LETTERS_PATH = os.path.join(BASE_DIR, "data", "gestures_letters_1.csv")
 
-# Small hardcoded stopword list -- words typically dropped when converting
-# spoken/written grammar into sign gloss order. Not exhaustive; edit freely.
-STOPWORDS = {
-    "a", "an", "the", "is", "am", "are", "was", "were", "be", "been", "being",
-    "to", "of", "do", "does", "did", "will", "would", "shall", "should",
-    "can", "could", "may", "might", "must", "and", "but", "or", "so",
-}
+TRANSITION_FRAMES = 6  # Interpolated frames between consecutive letters
+_letter_data_cache = None
 
-TRANSITION_FRAMES = 6  # interpolated frames inserted between consecutive signs
+
+def get_letter_landmarks_from_csv(letter):
+    """Retrieves real MediaPipe landmark frames for a letter from gestures_letters_1.csv."""
+    global _letter_data_cache
+    if not os.path.exists(CSV_LETTERS_PATH):
+        return None
+        
+    if _letter_data_cache is None:
+        try:
+            _letter_data_cache = pd.read_csv(CSV_LETTERS_PATH)
+        except Exception:
+            return None
+
+    # Filter rows matching the target letter
+    df_char = _letter_data_cache[_letter_data_cache['label'] == letter.upper()]
+    if df_char.empty:
+        return None
+
+    # Pull sample landmark vector (126 features) and repeat for 10 frames
+    sample_vector = df_char.iloc[0].drop('label').values.astype(np.float32)
+    return np.tile(sample_vector, (10, 1))
+
+
+def load_clip(word_or_char):
+    """Attempts to load a .npy motion clip first; falls back to CSV landmarks for letters."""
+    # 1. Try loading pre-recorded motion clip from sign_clips/
+    path = os.path.join(CLIPS_DIR, f"{word_or_char}.npy")
+    if os.path.exists(path):
+        return np.load(path)
+
+    # 2. If it's a single letter, attempt retrieval from the letter CSV dataset
+    if len(word_or_char) == 1 and word_or_char.isalpha():
+        csv_clip = get_letter_landmarks_from_csv(word_or_char)
+        if csv_clip is not None:
+            return csv_clip
+
+    return None
 
 
 def sentence_to_gloss(sentence):
-    """Lowercase, tokenize, and drop stopwords -> list of gloss words in order."""
+    """Tokenize words and preserve the entire sentence for fingerspelling/rendering."""
     words = re.findall(r"[a-zA-Z']+", sentence.lower())
-    return [w.upper() for w in words if w not in STOPWORDS]
-
-
-def load_clip(word):
-    path = os.path.join(CLIPS_DIR, f"{word}.npy")
-    if not os.path.exists(path):
-        return None
-    return np.load(path)
+    return [w.upper() for w in words]
 
 
 def generate_synthetic_letter_clip(letter, num_frames=10):
-    """Generates a 10-frame static landmark clip for fingerspelling a single letter."""
+    """Generates a static landmark clip fallback."""
     try:
         from synthetic_data_generator import _create_hand_pose
         from utils import normalize_landmarks
@@ -60,7 +76,7 @@ def generate_synthetic_letter_clip(letter, num_frames=10):
         pose_types = ['open', 'fist', 'index_middle', 'thumbs_up']
         base_pose = _create_hand_pose(pose_types[char_code])
         vec = np.zeros(FEATURE_VECTOR_LENGTH, dtype=np.float32)
-        vec[63:126] = normalize_landmarks(base_pose)  # Right hand slot
+        vec[63:126] = normalize_landmarks(base_pose)
         return np.tile(vec, (num_frames, 1))
     except Exception:
         vec = np.zeros(FEATURE_VECTOR_LENGTH, dtype=np.float32)
@@ -68,7 +84,7 @@ def generate_synthetic_letter_clip(letter, num_frames=10):
 
 
 def interpolate(frame_a, frame_b, steps):
-    """Interpolates `steps` frames between frame_a and frame_b with hand awareness."""
+    """Interpolates `steps` frames between frame_a and frame_b."""
     interpolated = []
     for i in range(1, steps + 1):
         alpha = i / (steps + 1)
@@ -92,36 +108,36 @@ def interpolate(frame_a, frame_b, steps):
 
 def build_sequence(gloss_words):
     """
-    Concatenates each word's clip (with interpolated transitions) into one
-    continuous sequence. Performs fingerspelling fallback for words missing recorded clips.
+    Renders every word strictly LETTER-BY-LETTER (fingerspelling)
+    with smooth interpolated transitions.
     """
     all_frames = []
     spans = []
     prev_last_frame = None
 
     for word in gloss_words:
-        clip = load_clip(word)
-        if clip is None:
-            # Fingerspelling fallback
-            print(f"Notice: No pre-recorded clip for '{word}'. Using fingerspelling fallback...")
-            letter_frames = []
-            for char in word:
-                c_clip = load_clip(char)
-                if c_clip is None:
-                    c_clip = generate_synthetic_letter_clip(char)
-                letter_frames.extend(list(c_clip))
-            clip = np.array(letter_frames, dtype=np.float32)
+        word_start_idx = len(all_frames)
+        
+        for char in word:
+            if not char.isalpha():
+                continue
+                
+            c_clip = load_clip(char)
+            if c_clip is None:
+                c_clip = generate_synthetic_letter_clip(char)
 
-        if prev_last_frame is not None and len(clip) > 0:
-            all_frames.extend(interpolate(prev_last_frame, clip[0], TRANSITION_FRAMES))
+            if prev_last_frame is not None and len(c_clip) > 0:
+                all_frames.extend(interpolate(prev_last_frame, c_clip[0], TRANSITION_FRAMES))
 
-        start_idx = len(all_frames)
-        all_frames.extend(list(clip))
-        end_idx = len(all_frames)  # exclusive
-        spans.append((word, start_idx, end_idx))
+            all_frames.extend(list(c_clip))
 
-        if len(clip) > 0:
-            prev_last_frame = clip[-1]
+            if len(c_clip) > 0:
+                prev_last_frame = c_clip[-1]
+
+        word_end_idx = len(all_frames)
+        
+        if word_end_idx > word_start_idx:
+            spans.append((word, word_start_idx, word_end_idx))
 
     if not all_frames:
         return np.zeros((0, FEATURE_VECTOR_LENGTH), dtype=np.float32), []
@@ -129,12 +145,10 @@ def build_sequence(gloss_words):
     return np.array(all_frames, dtype=np.float32), spans
 
 
-
 def render_video(frames, spans, output_path, fps=20, size=(640, 480)):
-    """Renders the landmark sequence as a stick-figure video with word captions."""
+    """Renders the landmark sequence as a video."""
     writer = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, size)
 
-    # Build a quick frame_idx -> current word lookup for captioning
     caption_for_frame = {}
     for word, start, end in spans:
         for i in range(start, end):
@@ -152,8 +166,8 @@ def render_video(frames, spans, output_path, fps=20, size=(640, 480)):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--sentence", required=True, help="Sentence to translate into sign language")
-    parser.add_argument("--output", default="output_sign.mp4", help="Output video path")
+    parser.add_argument("--sentence", required=True)
+    parser.add_argument("--output", default="output_sign.mp4")
     parser.add_argument("--fps", type=int, default=20)
     args = parser.parse_args()
 
@@ -162,16 +176,11 @@ def main():
 
     frames, spans = build_sequence(gloss)
     if len(frames) == 0:
-        print("No clips available for any word in this sentence -- nothing to render.")
+        print("No clips available.")
         return
 
     render_video(frames, spans, args.output, fps=args.fps)
     print(f"Rendered {len(frames)} frames -> {args.output}")
-
-    # Save spans alongside the video so verify_generation.py can reuse them
-    # without re-running gloss/clip lookup.
-    np.save(args.output + ".spans.npy", np.array(spans, dtype=object))
-    np.save(args.output + ".frames.npy", frames)
 
 
 if __name__ == "__main__":
