@@ -35,15 +35,15 @@ from utils import create_hands_detector, extract_feature_vector, mp_drawing, mp_
 
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "model", "sign_classifier.joblib")
 
+# --- Model Detection & Stability Parameters ---
 # How many recent predictions to look at when deciding a sign is "confirmed"
-STABILITY_WINDOW = 12
+STABILITY_WINDOW = 8
 # Fraction of the window that must agree for a sign to be confirmed
-STABILITY_THRESHOLD = 0.75
+STABILITY_THRESHOLD = 0.70
 # Minimum seconds between confirming the SAME sign twice in a row
-# (prevents "HELLO" from being added 10 times while you hold the pose)
-REPEAT_COOLDOWN = 1.2
+REPEAT_COOLDOWN = 0.7
 # Model confidence required to accept a prediction
-MIN_CONFIDENCE = 0.90
+MIN_CONFIDENCE = 0.85
 # Required gap between the best and second-best class probabilities
 MIN_MARGIN = 0.10
 
@@ -76,18 +76,16 @@ class TTSEngine:
                 print(f"TTS Engine warning: {e}")
 
 
-
 def load_model():
     if not os.path.exists(MODEL_PATH):
         raise FileNotFoundError(
             f"No trained model found at {MODEL_PATH}.\n"
-            "Run collect_data.py for each sign, then train_model.py, before running this script."
+            "Run dataset processing, then train_model.py, before running this script."
         )
-    # Load model and labels (they're saved separately)
+    # Load model and labels
     model = joblib.load(MODEL_PATH)
     labels_path = os.path.join(os.path.dirname(MODEL_PATH), "labels.joblib")
     
-    # Get unique classes from the model or labels file
     labels = []
     try:
         if hasattr(model, 'classes_'):
@@ -123,7 +121,6 @@ def main():
 
     print("Real-time sign translator running. Press 'q' in the video window to quit.")
 
-    # Create window and enable fullscreen
     window_name = "Sign Language Translator"
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
     cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
@@ -150,7 +147,8 @@ def main():
                     )
 
                 feats = extract_feature_vector(result.multi_hand_landmarks, result.multi_handedness)
-                # Never classify a zero-padded/no-hand vector.
+                
+                # Never classify a zero-padded/no-hand vector
                 if feats.any():
                     probs = model.predict_proba([feats])[0]
                     best_idx = probs.argmax()
@@ -162,7 +160,6 @@ def main():
                     second_best = 1.0
 
                 if confidence > MIN_CONFIDENCE and confidence - second_best >= MIN_MARGIN:
-                    # Get the predicted label safely
                     if hasattr(model, 'classes_'):
                         predicted_label = model.classes_[best_idx]
                     elif labels and best_idx < len(labels):
@@ -187,9 +184,16 @@ def main():
                     or (now - last_confirmed_time) >= REPEAT_COOLDOWN
                 )
                 if can_add:
-                    sentence += (" " if sentence and not sentence.endswith(" ") else "") + confirmed_sign
+                    # Single letters (A-Z) append directly to spell words
+                    if len(confirmed_sign) == 1 and confirmed_sign.isalpha():
+                        sentence += confirmed_sign
+                    # Full word gestures append with a space
+                    else:
+                        sentence += (" " if sentence and not sentence.endswith(" ") else "") + confirmed_sign
+                        
                     last_confirmed_sign = confirmed_sign
                     last_confirmed_time = now
+                    
                     if auto_speak:
                         tts.speak(confirmed_sign)
 
@@ -200,7 +204,7 @@ def main():
             else:
                 last_display_prediction = "no hand detected"
 
-            # --- HUD overlay ---
+            # --- HUD Overlay ---
             h, w, _ = frame.shape
             overlay_h = 110
             cv2.rectangle(frame, (0, h - overlay_h), (w, h), (30, 30, 30), -1)
@@ -220,8 +224,8 @@ def main():
             elif key == ord(' '):
                 sentence += " "
             elif key == ord('b'):
-                sentence = sentence.rstrip()
-                sentence = sentence[:sentence.rfind(" ") + 1] if " " in sentence else ""
+                # Deletes last character if string ends with letters, or last word if space separated
+                sentence = sentence[:-1] if sentence else ""
             elif key == ord('c'):
                 sentence = ""
                 last_confirmed_sign = None

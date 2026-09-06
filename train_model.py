@@ -16,8 +16,18 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
 
+from sklearn.ensemble import RandomForestClassifier
+
+# Replace your standard RandomForestClassifier with this balanced config:
+clf = RandomForestClassifier(
+    n_estimators=300,
+    class_weight='balanced',  # Fixes the 60 vs 14 sample imbalance
+    random_state=42,
+    n_jobs=-1
+)
+
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
-CSV_PATH = os.path.join(DATA_DIR, "gestures.csv")
+CSV_PATH = os.path.join(DATA_DIR, "gestures_combined.csv")
 MODEL_DIR = os.path.join(os.path.dirname(__file__), "model")
 MODEL_PATH = os.path.join(MODEL_DIR, "sign_classifier.joblib")
 
