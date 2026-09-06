@@ -7,9 +7,17 @@ Tests the model on a few random samples from the test set.
 """
 
 import os
+import sys
 import joblib
 import pandas as pd
 import numpy as np
+
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 def quick_test():
     MODEL_PATH = "model/sign_classifier.joblib"

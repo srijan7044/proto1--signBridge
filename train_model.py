@@ -54,8 +54,11 @@ def main():
     print(classification_report(y_test, y_pred))
 
     os.makedirs(MODEL_DIR, exist_ok=True)
-    joblib.dump({"model": clf, "labels": sorted(df["label"].unique().tolist())}, MODEL_PATH)
+    joblib.dump(clf, MODEL_PATH)
+    labels_path = os.path.join(MODEL_DIR, "labels.joblib")
+    joblib.dump(list(clf.classes_), labels_path)
     print(f"Model saved to {MODEL_PATH}")
+    print(f"Labels saved to {labels_path}")
 
 
 if __name__ == "__main__":

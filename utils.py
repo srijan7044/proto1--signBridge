@@ -43,17 +43,21 @@ def normalize_landmarks(landmark_list):
 
     Steps:
       1. Translate so the wrist (landmark 0) is the origin.
-      2. Scale by the max distance from the wrist to any landmark, so the
-         representation is invariant to how close/far the hand is from
-         the camera.
+      2. Scale by palm length (wrist landmark 0 -> middle finger MCP landmark 9)
+         so representation is anatomically invariant regardless of fist/open posture.
     """
     pts = np.array(landmark_list, dtype=np.float32)  # shape (21, 3)
     wrist = pts[0].copy()
     pts -= wrist  # translation invariance
 
-    max_dist = np.max(np.linalg.norm(pts, axis=1))
-    if max_dist > 1e-6:
-        pts /= max_dist  # scale invariance
+    # Palm size reference: distance from wrist (0) to middle finger base (9)
+    palm_size = np.linalg.norm(pts[9])
+    if palm_size > 1e-6:
+        pts /= palm_size
+    else:
+        max_dist = np.max(np.linalg.norm(pts, axis=1))
+        if max_dist > 1e-6:
+            pts /= max_dist
 
     return pts.flatten()  # length 63
 
@@ -64,62 +68,68 @@ def extract_feature_vector(multi_hand_landmarks, multi_handedness=None):
     detection result for a single frame, regardless of whether 0, 1, or 2
     hands are visible. Missing hands are zero-padded.
 
-    Hand ordering: if handedness info is available we always place the
-    "Left" hand's features first and "Right" hand's second (as reported by
-    MediaPipe, which labels handedness from the camera's point of view).
-    This keeps the feature layout consistent across frames even if a
-    person's hands swap positions in the frame.
+    Strict Hand Slot Assignment:
+      - Slot 0 (features 0..62): Left hand
+      - Slot 1 (features 63..125): Right hand
     """
     vector = np.zeros(FEATURE_VECTOR_LENGTH, dtype=np.float32)
 
     if not multi_hand_landmarks:
         return vector
 
-    hands_data = []
     for idx, hand_landmarks in enumerate(multi_hand_landmarks):
-        label = "Right"  # default if handedness missing
+        label = None
         if multi_handedness is not None and idx < len(multi_handedness):
-            label = multi_handedness[idx].classification[0].label
+            label = multi_handedness[idx].classification[0].label  # "Left" or "Right"
+
         coords = [(lm.x, lm.y, lm.z) for lm in hand_landmarks.landmark]
         norm = normalize_landmarks(coords)
-        hands_data.append((label, norm))
 
-    # Sort so "Left" always occupies slot 0 and "Right" occupies slot 1
-    hands_data.sort(key=lambda t: t[0])
+        if label == "Left":
+            slot = 0
+        elif label == "Right":
+            slot = 1
+        else:
+            wrist_x = coords[0][0]
+            slot = 0 if wrist_x < 0.5 else 1
 
-    for slot, (_, norm) in enumerate(hands_data[:MAX_HANDS]):
         start = slot * FEATURES_PER_HAND
         vector[start:start + FEATURES_PER_HAND] = norm
 
     return vector
 
 
-def draw_skeleton(canvas, feature_vector, scale=140, color=(0, 255, 255), thickness=2):
+
+def draw_skeleton(canvas, feature_vector, scale=110, color=(0, 255, 255), thickness=2):
     """
     Draws hand skeleton(s) from a normalized 126-length feature vector onto
-    an existing image (canvas), IN PLACE. Used to visualize/render
-    generated sign sequences (as opposed to mp_drawing.draw_landmarks,
-    which only works on live MediaPipe detection results).
-
-    Hand 1 (indices 0-62) is drawn offset to the left of center; hand 2
-    (indices 63-125) offset to the right, so two hands don't overlap.
+    an existing image (canvas), IN PLACE. Anchors wrist at h * 0.72 so fingers
+    extending upward (negative Y) center nicely in the viewport.
     """
-    import cv2  # local import keeps utils.py importable without cv2 for non-drawing use
+    import cv2
 
     h, w = canvas.shape[:2]
-    center_y = h // 2
-    offsets = [(-w // 4, 0), (w // 4, 0)]
+    wrist_y = int(h * 0.72)
+
+    has_left = np.any(feature_vector[0:63])
+    has_right = np.any(feature_vector[63:126])
+
+    offsets = [(-w // 6, 0), (w // 6, 0)]
+    if not has_left and has_right:
+        offsets[1] = (0, 0)
+    elif has_left and not has_right:
+        offsets[0] = (0, 0)
 
     for slot in range(MAX_HANDS):
         start = slot * FEATURES_PER_HAND
         chunk = feature_vector[start:start + FEATURES_PER_HAND]
         if not np.any(chunk):
-            continue  # this hand slot is empty/zero-padded, nothing to draw
+            continue
 
         pts = chunk.reshape(NUM_LANDMARKS, 3)
         ox, oy = offsets[slot]
         pixel_pts = [
-            (int(w // 2 + ox + x * scale), int(center_y + oy + y * scale))
+            (int(w // 2 + ox + x * scale), int(wrist_y + oy + y * scale))
             for x, y, _ in pts
         ]
 
@@ -129,3 +139,4 @@ def draw_skeleton(canvas, feature_vector, scale=140, color=(0, 255, 255), thickn
             cv2.circle(canvas, (x, y), 3, (255, 255, 255), -1)
 
     return canvas
+

@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0f172a" />
+    <title>SignBridge — Bi-Directional Sign Language Communicator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand-group">
+        <span class="brand-icon">🤟</span>
+        <a class="brand" href="/" aria-label="SignBridge home">SignBridge</a>
+        <span class="badge">Bi-Directional</span>
+      </div>
+      <div class="topbar-actions">
+        <button id="theme-toggle" class="secondary-button" type="button" aria-pressed="true">
+          ☀️ Light theme
+        </button>
+      </div>
+    </header>
+
+    <main class="shell">
+      <!-- Mode Selection Tabs -->
+      <nav class="mode-tabs" aria-label="Communication modes">
+        <button id="tab-sign-to-voice" class="tab-button active" type="button">
+          <span class="tab-icon">🖐️</span> Sign to Speech (Deaf $\rightarrow$ Hearing)
+        </button>
+        <button id="tab-voice-to-sign" class="tab-button" type="button">
+          <span class="tab-icon">🗣️</span> Voice/Text to Sign (Hearing $\rightarrow$ Deaf)
+        </button>
+      </nav>
+
+      <div id="alert" class="alert" role="alert" hidden></div>
+
+      <!-- MODE 1: SIGN TO SPEECH -->
+      <div id="mode-sign-to-voice" class="mode-section">
+        <section class="intro">
+          <p class="eyebrow">Deaf & Mute $\rightarrow$ Hearing Partner</p>
+          <h1>Turn Hand Signs into Voice & Text</h1>
+          <p class="lede">
+            Sign into your webcam to build sentences and speak them out loud automatically.
+          </p>
+        </section>
+
+        <section class="workspace">
+          <div class="panel capture-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Camera Controls</p>
+                <h2>Live Webcam Stream</h2>
+              </div>
+              <span id="camera-status" class="status-badge status-offline">Camera OFF</span>
+            </div>
+            <div class="video-container">
+              <div id="camera-off-overlay" class="camera-off-overlay">
+                <span class="cam-icon">📷</span>
+                <p class="cam-off-title">Camera is Turned OFF</p>
+                <p class="cam-off-sub">Click "Turn Camera ON" below to start webcam sign recognition</p>
+              </div>
+              <video id="camera" autoplay playsinline muted aria-label="Camera stream" hidden></video>
+              <canvas id="camera-canvas" hidden></canvas>
+              <img id="preview" alt="Annotated hand preview" hidden />
+            </div>
+            <div class="capture-actions">
+              <button id="camera-power-btn" class="power-button power-off" type="button">
+                🔴 Turn Camera ON
+              </button>
+              <button id="toggle-realtime" class="secondary-button" type="button" disabled>
+                ⚡ Live Auto-Recognize: OFF
+              </button>
+              <button id="capture" class="secondary-button" type="button" disabled>
+                📸 Capture Frame
+              </button>
+            </div>
+
+            <div class="upload-box">
+              <label class="upload-label" for="upload">Or upload a hand gesture photo:</label>
+              <input id="upload" type="file" accept="image/png,image/jpeg" />
+            </div>
+          </div>
+
+          <div class="panel result-panel">
+            <p class="eyebrow">Recognition Engine</p>
+            <h2>Detected Sign</h2>
+            <div class="result-box">
+              <span class="result-label">Live Prediction</span>
+              <strong id="result">No sign detected</strong>
+              <span id="confidence" class="confidence-text">Start camera or upload an image.</span>
+            </div>
+            
+            <div class="actions-stack">
+              <button id="toggle-auto-add" class="primary-button full-width" type="button">
+                ✨ Auto-Add Signs to Sentence: ON
+              </button>
+              <button id="add-sign" class="secondary-button full-width" type="button" disabled>
+                ➕ Manually Add Sign
+              </button>
+              <button id="toggle-auto-speak" class="secondary-button full-width" type="button">
+                🔊 Auto-Speak Confirmed Signs: OFF
+              </button>
+            </div>
+
+
+            <p class="small-note">
+              Tip: Keep your hand centered under good lighting for high prediction accuracy.
+            </p>
+          </div>
+        </section>
+
+        <section class="panel sentence-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Sentence Builder</p>
+              <h2>Spoken Output</h2>
+            </div>
+            <span id="label-count" class="badge-subtle">Loading model signs...</span>
+          </div>
+          <label for="sentence" class="sr-only">Recognized Sentence</label>
+          <textarea
+            id="sentence"
+            rows="3"
+            placeholder="Recognized signs will appear here automatically..."
+          ></textarea>
+          <div class="sentence-actions">
+            <button id="delete-word" class="secondary-button" type="button">
+              ⌫ Delete Word
+            </button>
+            <button id="clear" class="secondary-button" type="button">
+              🗑️ Clear
+            </button>
+            <button id="speak" class="primary-button" type="button">
+              🔊 Speak Aloud
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <!-- MODE 2: VOICE/TEXT TO SIGN -->
+      <div id="mode-voice-to-sign" class="mode-section" hidden>
+        <section class="intro">
+          <p class="eyebrow">Hearing Partner $\rightarrow$ Deaf & Mute</p>
+          <h1>Convert Speech & Text into Sign Language</h1>
+          <p class="lede">
+            Speak or type a message to generate an animated sign language skeleton sequence for deaf/mute individuals to read.
+          </p>
+        </section>
+
+        <section class="workspace text-to-sign-workspace">
+          <div class="panel input-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Input Message</p>
+                <h2>Speak or Type</h2>
+              </div>
+              <button id="mic-btn" class="mic-button" type="button" title="Start voice recording">
+                🎤 Voice Input
+              </button>
+            </div>
+
+            <textarea
+              id="tts-input"
+              rows="3"
+              placeholder="e.g. Hello, thank you for helping me today..."
+            ></textarea>
+
+            <div class="chip-container">
+              <span class="chip-label">Quick Phrases:</span>
+              <button class="phrase-chip" type="button">Hello</button>
+              <button class="phrase-chip" type="button">Thank you</button>
+              <button class="phrase-chip" type="button">Yes</button>
+              <button class="phrase-chip" type="button">No</button>
+              <button class="phrase-chip" type="button">Good job</button>
+              <button class="phrase-chip" type="button">Help me</button>
+            </div>
+
+            <button id="generate-sign-btn" class="primary-button full-width" type="button">
+              ✨ Render Sign Language Animation
+            </button>
+          </div>
+
+          <div class="panel animation-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Sign Language Render</p>
+                <h2>Skeleton Animation</h2>
+              </div>
+              <span id="gloss-badge" class="badge-gloss">Gloss: Ready</span>
+            </div>
+
+            <div class="animation-container">
+              <canvas id="sign-canvas" width="640" height="480"></canvas>
+              <div id="canvas-overlay-caption" class="canvas-caption">Ready</div>
+            </div>
+
+            <div class="playback-controls">
+              <button id="play-pause-btn" class="secondary-button" type="button" disabled>
+                ▶ Play
+              </button>
+              <button id="restart-btn" class="secondary-button" type="button" disabled>
+                🔄 Replay
+              </button>
+              <label for="speed-select" class="speed-label">Speed:</label>
+              <select id="speed-select" class="speed-select">
+                <option value="0.5">0.5x</option>
+                <option value="1.0" selected>1.0x (Normal)</option>
+                <option value="1.5">1.5x</option>
+              </select>
+            </div>
+            
+            <div id="gloss-list" class="gloss-pills"></div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <p>SignBridge © 2026 — Bi-Directional Sign Language Accessibility Suite</p>
+    </footer>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
