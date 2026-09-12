@@ -17,7 +17,7 @@ from utils import draw_skeleton, FEATURE_VECTOR_LENGTH
 
 BASE_DIR = os.path.dirname(__file__)
 CLIPS_DIR = os.path.join(BASE_DIR, "sign_clips")
-CSV_LETTERS_PATH = os.path.join(BASE_DIR, "data", "gestures_letters_1.csv")
+CSV_LETTERS_PATH = os.path.join(BASE_DIR, "data", "gestures_letters_SignAlphaSet_1.csv")
 
 TRANSITION_FRAMES = 6  # Interpolated frames between consecutive letters
 _letter_data_cache = None

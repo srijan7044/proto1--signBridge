@@ -37,15 +37,15 @@ MODEL_PATH = os.path.join(os.path.dirname(__file__), "model", "sign_classifier.j
 
 # --- Model Detection & Stability Parameters ---
 # How many recent predictions to look at when deciding a sign is "confirmed"
-STABILITY_WINDOW = 8
+STABILITY_WINDOW = 5
 # Fraction of the window that must agree for a sign to be confirmed
-STABILITY_THRESHOLD = 0.70
+STABILITY_THRESHOLD = 0.60
 # Minimum seconds between confirming the SAME sign twice in a row
 REPEAT_COOLDOWN = 0.7
 # Model confidence required to accept a prediction
-MIN_CONFIDENCE = 0.85
+MIN_CONFIDENCE = 0.55
 # Required gap between the best and second-best class probabilities
-MIN_MARGIN = 0.10
+MIN_MARGIN = 0.05
 
 
 class TTSEngine:

@@ -7,4 +7,8 @@ __pycache__/
 data/asl_dataset/
 data/Indian Sign Language Alphabet Dataset/
 data/a_to_h/
+data/SignAlphaSet
+data/processed_combine_asl_dataset
+data/numbers_processed_combine_asl_dataset
+data/gestures_skeleton_converted.csv
 model/*.joblib
