@@ -150,7 +150,22 @@ def text_to_sign_api():
         })
     except Exception as e:
         app.logger.exception("Text-to-sign generation failed")
-        return jsonify({"error": f"Generation failed: {e}"}), 500
+@app.post("/api/gloss-to-sentence")
+def gloss_to_sentence_api():
+    data = request.get_json() or {}
+    gloss = data.get("gloss", "")
+    try:
+        from grammar_engine import gloss_to_sentence, get_predictive_suggestions
+        sentence = gloss_to_sentence(gloss)
+        suggestions = get_predictive_suggestions(gloss)
+        return jsonify({
+            "gloss": gloss,
+            "sentence": sentence,
+            "suggestions": suggestions,
+        })
+    except Exception as e:
+        app.logger.exception("Gloss to sentence conversion failed")
+        return jsonify({"error": f"Grammar synthesis failed: {e}"}), 500
 
 
 if __name__ == "__main__":

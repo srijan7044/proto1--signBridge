@@ -43,6 +43,18 @@ let autoSpeakActive = false;
 let autoAddActive = true;
 let speechRecognition = null;
 
+// Word Buffer & Smart Suggestion Elements
+const wordBufferContainer = document.querySelector("#word-buffer-container");
+const wordBufferText = document.querySelector("#word-buffer-text");
+const commitWordBtn = document.querySelector("#commit-word-btn");
+const clearWordBtn = document.querySelector("#clear-word-btn");
+const smartChipsList = document.querySelector("#smart-chips-list");
+const grammarBtn = document.querySelector("#grammar-btn");
+
+let wordBuffer = "";
+let bufferInactivityTimer = null;
+const BUFFER_INACTIVITY_MS = 1400;
+
 // Stability tracking for auto-add and auto-speak
 let _consecutiveSign = "";
 let _consecutiveCount = 0;
@@ -82,6 +94,97 @@ function speakText(text) {
   const utterance = new SpeechSynthesisUtterance(text.trim());
   utterance.rate = 1.0;
   window.speechSynthesis.speak(utterance);
+}
+
+// --- WORD BUFFER & SMART SUGGESTIONS HELPERS ---
+function updateWordBufferUI() {
+  if (!wordBufferContainer || !wordBufferText) return;
+  if (wordBuffer.length > 0) {
+    wordBufferContainer.hidden = false;
+    wordBufferContainer.style.display = "flex";
+    wordBufferText.textContent = wordBuffer.split("").join(" - ");
+  } else {
+    wordBufferContainer.hidden = true;
+    wordBufferContainer.style.display = "none";
+    wordBufferText.textContent = "";
+  }
+}
+
+function commitWordBuffer() {
+  if (!wordBuffer || !wordBuffer.trim()) return;
+  const word = wordBuffer.trim();
+  sentence.value = `${sentence.value.trim()} ${word}`.trim();
+  flashSentenceBox();
+  if (autoSpeakActive) {
+    speakText(word);
+  }
+  wordBuffer = "";
+  if (bufferInactivityTimer) clearTimeout(bufferInactivityTimer);
+  bufferInactivityTimer = null;
+  updateWordBufferUI();
+  fetchSmartSuggestions(sentence.value);
+}
+
+function clearWordBuffer() {
+  wordBuffer = "";
+  if (bufferInactivityTimer) clearTimeout(bufferInactivityTimer);
+  bufferInactivityTimer = null;
+  updateWordBufferUI();
+}
+
+async function fetchSmartSuggestions(glossText) {
+  if (!glossText || !glossText.trim()) return;
+  try {
+    const res = await fetch("/api/gloss-to-sentence", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gloss: glossText }),
+    });
+    const data = await res.json();
+    if (data.suggestions && data.suggestions.length > 0) {
+      renderSmartChips(data.suggestions);
+    }
+  } catch (err) {
+    console.warn("Could not fetch suggestions:", err);
+  }
+}
+
+function renderSmartChips(suggestions) {
+  if (!smartChipsList) return;
+  smartChipsList.innerHTML = "";
+  suggestions.forEach((text) => {
+    const chip = document.createElement("button");
+    chip.className = "smart-chip";
+    chip.type = "button";
+    chip.textContent = text;
+    chip.addEventListener("click", () => {
+      sentence.value = text;
+      flashSentenceBox();
+      speakText(text);
+    });
+    smartChipsList.appendChild(chip);
+  });
+}
+
+async function autoFixGrammar() {
+  const currentText = sentence.value.trim();
+  if (!currentText) return showError("Please sign or enter words first before fixing grammar.");
+  clearError();
+  try {
+    const res = await fetch("/api/gloss-to-sentence", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gloss: currentText }),
+    });
+    const data = await res.json();
+    if (data.sentence) {
+      sentence.value = data.sentence;
+      flashSentenceBox();
+      if (data.suggestions) renderSmartChips(data.suggestions);
+    }
+  } catch (err) {
+    showError("Grammar fix failed: " + err.message);
+  }
 }
 
 // --- TAB SWITCHING ---
@@ -127,26 +230,34 @@ async function predictFrame(blob) {
         _consecutiveCount = 1;
       }
 
-      // Auto-add to sentence when stable
+      // Auto-add logic when stable
       if (
         autoAddActive &&
         _consecutiveCount === AUTO_ADD_STABILITY_THRESHOLD &&
         detectedLabel !== _lastAppendedSign
       ) {
         _lastAppendedSign = detectedLabel;
-        sentence.value = `${sentence.value.trim()} ${detectedLabel}`.trim();
-        sentence.classList.add("sentence-flash");
-        setTimeout(() => sentence.classList.remove("sentence-flash"), 600);
-      }
 
-      // Auto-speak when stable
-      if (
-        autoSpeakActive &&
-        _consecutiveCount === AUTO_ADD_STABILITY_THRESHOLD &&
-        detectedLabel !== window._lastAutoSpokenSign
-      ) {
-        window._lastAutoSpokenSign = detectedLabel;
-        speakText(detectedLabel);
+        const isLetter = detectedLabel.length === 1 && /^[A-Z]$/i.test(detectedLabel);
+
+        if (isLetter) {
+          // Accumulate letter into Word Buffer
+          wordBuffer += detectedLabel.toUpperCase();
+          updateWordBufferUI();
+          if (bufferInactivityTimer) clearTimeout(bufferInactivityTimer);
+          bufferInactivityTimer = setTimeout(commitWordBuffer, BUFFER_INACTIVITY_MS);
+        } else {
+          // Full-word gesture (e.g. HELLO, THANKS, HELP, WATER)
+          if (wordBuffer) {
+            commitWordBuffer();
+          }
+          sentence.value = `${sentence.value.trim()} ${detectedLabel}`.trim();
+          flashSentenceBox();
+          if (autoSpeakActive) {
+            speakText(detectedLabel);
+          }
+          fetchSmartSuggestions(sentence.value);
+        }
       }
     } else {
       result.textContent = "No sign detected";
@@ -359,8 +470,21 @@ toggleAutoSpeak.addEventListener("click", () => {
   toggleAutoSpeak.classList.toggle("secondary-button", !autoSpeakActive);
 });
 
+if (commitWordBtn) {
+  commitWordBtn.addEventListener("click", commitWordBuffer);
+}
+
+if (clearWordBtn) {
+  clearWordBtn.addEventListener("click", clearWordBuffer);
+}
+
+if (grammarBtn) {
+  grammarBtn.addEventListener("click", autoFixGrammar);
+}
+
 document.querySelector("#delete-word").addEventListener("click", () => {
   sentence.value = sentence.value.trim().split(/\s+/).slice(0, -1).join(" ");
+  fetchSmartSuggestions(sentence.value);
 });
 
 document.querySelector("#clear").addEventListener("click", () => {
@@ -372,11 +496,16 @@ document.querySelector("#clear").addEventListener("click", () => {
   _consecutiveCount = 0;
   _lastAppendedSign = "";
   window._lastAutoSpokenSign = "";
+  clearWordBuffer();
+  fetchSmartSuggestions("");
 });
 
 document.querySelector("#speak").addEventListener("click", () => {
   speakText(sentence.value);
 });
+
+// Initialize default smart suggestion chips
+fetchSmartSuggestions("");
 
 // --- MODE 2: VOICE & TEXT TO SIGN ---
 // Quick Phrase Chips

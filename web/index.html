@@ -119,18 +119,44 @@
         <section class="panel sentence-panel">
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">Sentence Builder</p>
+              <p class="eyebrow">Sentence Builder & Natural Grammar</p>
               <h2>Spoken Output</h2>
             </div>
             <span id="label-count" class="badge-subtle">Loading model signs...</span>
           </div>
+
+          <!-- Live Fingerspelling Word Buffer -->
+          <div id="word-buffer-container" class="word-buffer-container" hidden>
+            <span class="word-buffer-title">🔤 Assembling Word:</span>
+            <span id="word-buffer-text" class="word-buffer-pill"></span>
+            <button id="commit-word-btn" class="chip-button" type="button" title="Add this word to sentence now">✓ Add Word</button>
+            <button id="clear-word-btn" class="chip-button chip-cancel" type="button" title="Clear letter buffer">✕</button>
+          </div>
+
           <label for="sentence" class="sr-only">Recognized Sentence</label>
           <textarea
             id="sentence"
             rows="3"
             placeholder="Recognized signs will appear here automatically..."
           ></textarea>
+
+          <!-- Predictive Smart Conversational Chips -->
+          <div class="smart-suggestions-section">
+            <div class="smart-suggestions-header">
+              <span class="smart-icon">💡</span>
+              <span class="smart-label">Smart Sentence Suggestions (1-tap to speak):</span>
+            </div>
+            <div id="smart-chips-list" class="smart-chips-list">
+              <button class="smart-chip" type="button">Hello! How are you doing?</button>
+              <button class="smart-chip" type="button">Please help me, I need assistance.</button>
+              <button class="smart-chip" type="button">Thank you very much!</button>
+            </div>
+          </div>
+
           <div class="sentence-actions">
+            <button id="grammar-btn" class="secondary-button" type="button" title="Auto-fix grammar into natural English">
+              ✨ Fix Grammar
+            </button>
             <button id="delete-word" class="secondary-button" type="button">
               ⌫ Delete Word
             </button>
@@ -147,7 +173,7 @@
       <!-- MODE 2: VOICE/TEXT TO SIGN -->
       <div id="mode-voice-to-sign" class="mode-section" hidden>
         <section class="intro">
-          <p class="eyebrow">Hearing Partner $\rightarrow$ Deaf & Mute</p>
+          <p class="eyebrow">Hearing Partner → Deaf & Mute</p>
           <h1>Convert Speech & Text into Sign Language</h1>
           <p class="lede">
             Speak or type a message to generate an animated sign language skeleton sequence for deaf/mute individuals to read.
