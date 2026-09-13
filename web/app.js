@@ -3,10 +3,12 @@ const camera = document.querySelector("#camera");
 const cameraCanvas = document.querySelector("#camera-canvas");
 const preview = document.querySelector("#preview");
 const upload = document.querySelector("#upload");
-const startCamera = document.querySelector("#start-camera");
+const cameraToggle = document.querySelector("#camera-toggle");
+const cameraToggleText = document.querySelector("#camera-toggle-text");
 const toggleRealtime = document.querySelector("#toggle-realtime");
 const capture = document.querySelector("#capture");
 const addSign = document.querySelector("#add-sign");
+const toggleAutoAdd = document.querySelector("#toggle-auto-add");
 const toggleAutoSpeak = document.querySelector("#toggle-auto-speak");
 const result = document.querySelector("#result");
 const confidence = document.querySelector("#confidence");
@@ -38,7 +40,14 @@ let cameraStream = null;
 let realtimeInterval = null;
 let isRealtimeActive = false;
 let autoSpeakActive = false;
+let autoAddActive = true;
 let speechRecognition = null;
+
+// Stability tracking for auto-add and auto-speak
+let _consecutiveSign = "";
+let _consecutiveCount = 0;
+let _lastAppendedSign = "";
+const AUTO_ADD_STABILITY_THRESHOLD = 3;
 
 // Animation playback state
 let animFrames = [];
@@ -108,35 +117,104 @@ async function predictFrame(blob) {
     if (detectedLabel) {
       result.textContent = detectedLabel;
       confidence.textContent = `Confidence: ${(data.confidence * 100).toFixed(1)}%`;
-      addSign.disabled = false;
+      if (addSign) addSign.disabled = false;
 
-      if (autoSpeakActive && detectedLabel !== window._lastAutoSpokenSign) {
+      // Track consecutive stable predictions
+      if (detectedLabel === _consecutiveSign) {
+        _consecutiveCount++;
+      } else {
+        _consecutiveSign = detectedLabel;
+        _consecutiveCount = 1;
+      }
+
+      // Auto-add to sentence when stable
+      if (
+        autoAddActive &&
+        _consecutiveCount === AUTO_ADD_STABILITY_THRESHOLD &&
+        detectedLabel !== _lastAppendedSign
+      ) {
+        _lastAppendedSign = detectedLabel;
+        sentence.value = `${sentence.value.trim()} ${detectedLabel}`.trim();
+        sentence.classList.add("sentence-flash");
+        setTimeout(() => sentence.classList.remove("sentence-flash"), 600);
+      }
+
+      // Auto-speak when stable
+      if (
+        autoSpeakActive &&
+        _consecutiveCount === AUTO_ADD_STABILITY_THRESHOLD &&
+        detectedLabel !== window._lastAutoSpokenSign
+      ) {
         window._lastAutoSpokenSign = detectedLabel;
         speakText(detectedLabel);
-        sentence.value = `${sentence.value.trim()} ${detectedLabel}`.trim();
       }
     } else {
       result.textContent = "No sign detected";
       confidence.textContent = "Keep hand steady and centered.";
-      addSign.disabled = true;
+      if (addSign) addSign.disabled = true;
+      _consecutiveSign = "";
+      _consecutiveCount = 0;
     }
 
-    if (data.image) {
+    if (data.image && data.label) {
       preview.src = `data:image/jpeg;base64,${data.image}`;
       preview.hidden = false;
+      preview.style.display = "block";
+    } else {
+      preview.hidden = true;
+      preview.style.display = "none";
     }
   } catch (error) {
     if (!isRealtimeActive) showError(error.message);
   }
 }
 
-const cameraPowerBtn = document.querySelector("#camera-power-btn");
 const cameraOffOverlay = document.querySelector("#camera-off-overlay");
 let isCameraOn = false;
+let isCameraStarting = false;
+
+function startRealtimeTracking() {
+  if (isRealtimeActive) return;
+  isRealtimeActive = true;
+  toggleRealtime.textContent = "⚡ Live Tracking: ON";
+  toggleRealtime.classList.add("primary-button");
+  toggleRealtime.classList.remove("secondary-button");
+  realtimeInterval = setInterval(() => {
+    if (!camera || !camera.videoWidth) return;
+    const w = camera.videoWidth || 640;
+    const h = camera.videoHeight || 480;
+    cameraCanvas.width = w;
+    cameraCanvas.height = h;
+    const ctx = cameraCanvas.getContext("2d");
+    ctx.drawImage(camera, 0, 0, w, h);
+    cameraCanvas.toBlob((blob) => {
+      if (blob && isRealtimeActive) predictFrame(blob);
+    }, "image/jpeg", 0.85);
+  }, 350);
+}
+
+function stopRealtimeTracking() {
+  isRealtimeActive = false;
+  if (realtimeInterval) clearInterval(realtimeInterval);
+  realtimeInterval = null;
+  toggleRealtime.textContent = "⚡ Live Tracking: OFF";
+  toggleRealtime.classList.remove("primary-button");
+  toggleRealtime.classList.add("secondary-button");
+  if (preview) {
+    preview.hidden = true;
+    preview.style.display = "none";
+  }
+}
 
 async function turnCameraOn() {
+  if (isCameraStarting || isCameraOn) return;
+  isCameraStarting = true;
   clearError();
   try {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach((track) => track.stop());
+      cameraStream = null;
+    }
     cameraStream = await navigator.mediaDevices.getUserMedia({
       video: { width: { ideal: 640 }, height: { ideal: 480 } },
       audio: false,
@@ -162,22 +240,21 @@ async function turnCameraOn() {
     cameraStatus.textContent = "Camera Active";
     cameraStatus.className = "status-badge status-online";
 
-    cameraPowerBtn.textContent = "🟢 Turn Camera OFF";
-    cameraPowerBtn.className = "power-button power-on";
+    if (cameraToggle) cameraToggle.checked = true;
+    if (cameraToggleText) cameraToggleText.textContent = "Camera: ON";
+
+    // Automatically activate live tracking so hand mapping dots appear immediately!
+    startRealtimeTracking();
   } catch (error) {
     showError("Camera access denied or unavailable: " + error.message);
     turnCameraOff();
+  } finally {
+    isCameraStarting = false;
   }
 }
 
 function turnCameraOff() {
-  if (isRealtimeActive) {
-    isRealtimeActive = false;
-    clearInterval(realtimeInterval);
-    toggleRealtime.textContent = "⚡ Live Auto-Recognize: OFF";
-    toggleRealtime.classList.remove("primary-button");
-    toggleRealtime.classList.add("secondary-button");
-  }
+  stopRealtimeTracking();
 
   if (cameraStream) {
     cameraStream.getTracks().forEach((track) => track.stop());
@@ -187,6 +264,11 @@ function turnCameraOff() {
   camera.srcObject = null;
   camera.hidden = true;
   camera.style.display = "none";
+  if (preview) {
+    preview.hidden = true;
+    preview.style.display = "none";
+    preview.src = "";
+  }
   if (cameraOffOverlay) {
     cameraOffOverlay.hidden = false;
     cameraOffOverlay.style.display = "flex";
@@ -198,42 +280,25 @@ function turnCameraOff() {
   cameraStatus.textContent = "Camera OFF";
   cameraStatus.className = "status-badge status-offline";
 
-  cameraPowerBtn.textContent = "🔴 Turn Camera ON";
-  cameraPowerBtn.className = "power-button power-off";
+  if (cameraToggle) cameraToggle.checked = false;
+  if (cameraToggleText) cameraToggleText.textContent = "Camera: OFF";
 }
 
-
-cameraPowerBtn.addEventListener("click", () => {
-  if (isCameraOn) {
-    turnCameraOff();
-  } else {
-    turnCameraOn();
-  }
-});
-
+if (cameraToggle) {
+  cameraToggle.addEventListener("change", () => {
+    if (cameraToggle.checked) {
+      turnCameraOn();
+    } else {
+      turnCameraOff();
+    }
+  });
+}
 
 toggleRealtime.addEventListener("click", () => {
-  isRealtimeActive = !isRealtimeActive;
   if (isRealtimeActive) {
-    toggleRealtime.textContent = "⚡ Live Auto-Recognize: ON";
-    toggleRealtime.classList.add("primary-button");
-    toggleRealtime.classList.remove("secondary-button");
-    realtimeInterval = setInterval(() => {
-      const w = camera.videoWidth || 640;
-      const h = camera.videoHeight || 480;
-      cameraCanvas.width = w;
-      cameraCanvas.height = h;
-      const ctx = cameraCanvas.getContext("2d");
-      ctx.drawImage(camera, 0, 0, w, h);
-      cameraCanvas.toBlob((blob) => {
-        if (blob) predictFrame(blob);
-      }, "image/jpeg", 0.85);
-    }, 400);
+    stopRealtimeTracking();
   } else {
-    toggleRealtime.textContent = "⚡ Live Auto-Recognize: OFF";
-    toggleRealtime.classList.remove("primary-button");
-    toggleRealtime.classList.add("secondary-button");
-    clearInterval(realtimeInterval);
+    startRealtimeTracking();
   }
 });
 
@@ -268,11 +333,24 @@ upload.addEventListener("change", (event) => {
   if (file) predictFrame(file);
 });
 
-addSign.addEventListener("click", () => {
-  if (detectedLabel) {
-    sentence.value = `${sentence.value.trim()} ${detectedLabel}`.trim();
-  }
-});
+if (addSign) {
+  addSign.addEventListener("click", () => {
+    if (detectedLabel) {
+      sentence.value = `${sentence.value.trim()} ${detectedLabel}`.trim();
+    }
+  });
+}
+
+if (toggleAutoAdd) {
+  toggleAutoAdd.addEventListener("click", () => {
+    autoAddActive = !autoAddActive;
+    toggleAutoAdd.textContent = `✨ Auto-Add Signs to Sentence: ${autoAddActive ? "ON" : "OFF"}`;
+    toggleAutoAdd.classList.toggle("primary-button", autoAddActive);
+    toggleAutoAdd.classList.toggle("secondary-button", !autoAddActive);
+    _consecutiveSign = "";
+    _consecutiveCount = 0;
+  });
+}
 
 toggleAutoSpeak.addEventListener("click", () => {
   autoSpeakActive = !autoSpeakActive;
@@ -289,7 +367,11 @@ document.querySelector("#clear").addEventListener("click", () => {
   sentence.value = "";
   result.textContent = "No sign yet";
   confidence.textContent = "Start camera or upload an image.";
-  addSign.disabled = true;
+  if (addSign) addSign.disabled = true;
+  _consecutiveSign = "";
+  _consecutiveCount = 0;
+  _lastAppendedSign = "";
+  window._lastAutoSpokenSign = "";
 });
 
 document.querySelector("#speak").addEventListener("click", () => {
@@ -503,6 +585,7 @@ function drawFrame(frameVector) {
 
 
 function startAnimationPlayback() {
+  clearTimeout(animTimer);
   animPlaying = true;
   playPauseBtn.textContent = "⏸ Pause";
   stepAnimation();
@@ -516,6 +599,7 @@ function stepAnimation() {
 
   const speed = parseFloat(speedSelect.value) || 1.0;
   const interval = 50 / speed; // Base 20 FPS (50ms per frame)
+  clearTimeout(animTimer);
   animTimer = setTimeout(stepAnimation, interval);
 }
 
@@ -531,8 +615,9 @@ playPauseBtn.addEventListener("click", () => {
 });
 
 restartBtn.addEventListener("click", () => {
+  clearTimeout(animTimer);
   animIndex = 0;
-  if (!animPlaying) startAnimationPlayback();
+  startAnimationPlayback();
 });
 
 // Theme Toggle

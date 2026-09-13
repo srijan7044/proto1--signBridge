@@ -6,3 +6,11 @@ __pycache__/
 # Ignore raw image dataset directories inside data/
 data/asl_dataset/
 data/Indian Sign Language Alphabet Dataset/
+data/a_to_h/
+data/SignAlphaSet
+data/processed_combine_asl_dataset
+data/numbers_processed_combine_asl_dataset
+data/gestures_skeleton_converted.csv
+data/gestures_skeleton_converted.csv.bak
+data/gestures_skeleton_normalized.csv
+model/*.joblib

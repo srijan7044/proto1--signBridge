@@ -60,18 +60,20 @@
               <div id="camera-off-overlay" class="camera-off-overlay">
                 <span class="cam-icon">📷</span>
                 <p class="cam-off-title">Camera is Turned OFF</p>
-                <p class="cam-off-sub">Click "Turn Camera ON" below to start webcam sign recognition</p>
+                <p class="cam-off-sub">Switch camera toggle below to start webcam sign recognition</p>
               </div>
               <video id="camera" autoplay playsinline muted aria-label="Camera stream" hidden></video>
               <canvas id="camera-canvas" hidden></canvas>
               <img id="preview" alt="Annotated hand preview" hidden />
             </div>
             <div class="capture-actions">
-              <button id="camera-power-btn" class="power-button power-off" type="button">
-                🔴 Turn Camera ON
-              </button>
+              <label class="toggle-switch-container" for="camera-toggle" title="Toggle Webcam On/Off">
+                <input type="checkbox" id="camera-toggle" class="toggle-switch-input" />
+                <span class="toggle-switch-slider"></span>
+                <span id="camera-toggle-text" class="toggle-switch-label">Camera: OFF</span>
+              </label>
               <button id="toggle-realtime" class="secondary-button" type="button" disabled>
-                ⚡ Live Auto-Recognize: OFF
+                ⚡ Live Tracking: OFF
               </button>
               <button id="capture" class="secondary-button" type="button" disabled>
                 📸 Capture Frame
@@ -97,9 +99,11 @@
               <button id="toggle-auto-add" class="primary-button full-width" type="button">
                 ✨ Auto-Add Signs to Sentence: ON
               </button>
+              <!-- Manual data insertion button commented out as requested
               <button id="add-sign" class="secondary-button full-width" type="button" disabled>
                 ➕ Manually Add Sign
               </button>
+              -->
               <button id="toggle-auto-speak" class="secondary-button full-width" type="button">
                 🔊 Auto-Speak Confirmed Signs: OFF
               </button>
