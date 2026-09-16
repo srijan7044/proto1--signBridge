@@ -13,4 +13,8 @@ data/numbers_processed_combine_asl_dataset
 data/gestures_skeleton_converted.csv
 data/gestures_skeleton_converted.csv.bak
 data/gestures_skeleton_normalized.csv
+~$gnBridge_IEEE_Conference_Paper.docx
+generate_documents.py
+SignBridge_IEEE_Conference_Paper.docx
+SignBridge_IEEE_Conference_Paper.pdf
 model/*.joblib
