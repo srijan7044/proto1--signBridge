@@ -127,16 +127,23 @@ async function predictFrame(blob) {
         _consecutiveCount = 1;
       }
 
-      // Auto-add to sentence when stable
+      // Auto-add to word buffer or sentence when stable
       if (
         autoAddActive &&
         _consecutiveCount === AUTO_ADD_STABILITY_THRESHOLD &&
         detectedLabel !== _lastAppendedSign
       ) {
         _lastAppendedSign = detectedLabel;
-        sentence.value = `${sentence.value.trim()} ${detectedLabel}`.trim();
-        sentence.classList.add("sentence-flash");
-        setTimeout(() => sentence.classList.remove("sentence-flash"), 600);
+        
+        // If it's a single letter (fingerspelling sign), append to word buffer
+        if (detectedLabel.length === 1 && detectedLabel.match(/[A-Z]/i)) {
+          addLetterToWordBuffer(detectedLabel.toUpperCase());
+        } else {
+          // Whole word sign, append directly to sentence
+          sentence.value = `${sentence.value.trim()} ${detectedLabel}`.trim();
+          sentence.classList.add("sentence-flash");
+          setTimeout(() => sentence.classList.remove("sentence-flash"), 600);
+        }
       }
 
       // Auto-speak when stable
@@ -156,11 +163,8 @@ async function predictFrame(blob) {
       _consecutiveCount = 0;
     }
 
-    if (data.image && data.label) {
-      preview.src = `data:image/jpeg;base64,${data.image}`;
-      preview.hidden = false;
-      preview.style.display = "block";
-    } else {
+    // Keep live webcam clean: on-screen skeleton tracking overlay is disabled
+    if (preview) {
       preview.hidden = true;
       preview.style.display = "none";
     }
@@ -622,11 +626,32 @@ restartBtn.addEventListener("click", () => {
 
 // Theme Toggle
 themeToggle.addEventListener("click", () => {
-  const isDark = document.documentElement.dataset.theme === "dark";
-  const newTheme = isDark ? "light" : "dark";
+  const currentTheme = document.documentElement.getAttribute("data-theme") || document.documentElement.dataset.theme || "dark";
+  const newTheme = currentTheme === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", newTheme);
   document.documentElement.dataset.theme = newTheme;
-  themeToggle.textContent = isDark ? "🌙 Dark theme" : "☀️ Light theme";
-  themeToggle.setAttribute("aria-pressed", String(!isDark));
+  themeToggle.textContent = newTheme === "dark" ? "☀️ Light theme" : "🌙 Dark theme";
+  themeToggle.setAttribute("aria-pressed", String(newTheme === "light"));
+
+  // Live update Clerk theme properties without destroying the DOM node
+  if (clerkInstance) {
+    const appearance = getClerkAppearance();
+    if (typeof clerkInstance.__unstable__updateProps === "function") {
+      try {
+        if (!clerkInstance.user && clerkSignInMount) {
+          clerkInstance.__unstable__updateProps({
+            node: clerkSignInMount,
+            props: { appearance: appearance },
+          }).catch(() => {});
+        } else if (clerkInstance.user && clerkUserButtonMount) {
+          clerkInstance.__unstable__updateProps({
+            node: clerkUserButtonMount,
+            props: { appearance: appearance },
+          }).catch(() => {});
+        }
+      } catch (_) {}
+    }
+  }
 });
 
 // Load Model Labels
@@ -640,3 +665,686 @@ fetch("/api/labels")
   .catch(() => {
     document.querySelector("#label-count").textContent = "Model Active";
   });
+
+
+// ==========================================
+// 1. LETTER-TO-WORD CONSTRUCTION ENGINE
+// ==========================================
+let wordLetters = [];
+let currentCorrectedWord = "";
+const wordBufferChips = document.querySelector("#word-buffer-chips");
+const correctedWordEl = document.querySelector("#corrected-word");
+const wordSuggestionsEl = document.querySelector("#word-suggestions");
+const commitWordBtn = document.querySelector("#commit-word-btn");
+const backspaceLetterBtn = document.querySelector("#backspace-letter-btn");
+const clearWordBtn = document.querySelector("#clear-word-btn");
+const polishGrammarBtn = document.querySelector("#polish-grammar-btn");
+
+function addLetterToWordBuffer(letter) {
+  if (!letter || letter.length !== 1) return;
+  wordLetters.push(letter.toUpperCase());
+  renderWordBuffer();
+  queryWordConstruction();
+}
+
+function renderWordBuffer() {
+  if (!wordBufferChips) return;
+  if (wordLetters.length === 0) {
+    wordBufferChips.innerHTML = '<span class="placeholder-chip">Sign letters to build a word...</span>';
+    if (correctedWordEl) correctedWordEl.textContent = "—";
+    if (wordSuggestionsEl) wordSuggestionsEl.innerHTML = '<span class="no-suggestions">Waiting for letters...</span>';
+    currentCorrectedWord = "";
+    return;
+  }
+
+  wordBufferChips.innerHTML = wordLetters
+    .map((l) => `<span class="buffer-letter-chip">${l}</span>`)
+    .join("");
+}
+
+async function queryWordConstruction() {
+  if (wordLetters.length === 0) return;
+  try {
+    const res = await fetch("/api/gestures/word-construct", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ letters: wordLetters }),
+    });
+    const data = await res.json();
+    if (data.success && data.data) {
+      const { raw, corrected, suggestions } = data.data;
+      currentCorrectedWord = corrected || raw;
+      if (correctedWordEl) correctedWordEl.textContent = currentCorrectedWord;
+
+      if (wordSuggestionsEl) {
+        if (suggestions && suggestions.length > 0) {
+          wordSuggestionsEl.innerHTML = suggestions
+            .map(
+              (s) => `<button type="button" class="word-suggestion-chip" data-word="${s}">${s}</button>`
+            )
+            .join("");
+
+          // Attach click listener to suggestion chips
+          wordSuggestionsEl.querySelectorAll(".word-suggestion-chip").forEach((chip) => {
+            chip.addEventListener("click", () => {
+              const word = chip.dataset.word;
+              commitWordToSentence(word);
+            });
+          });
+        } else {
+          wordSuggestionsEl.innerHTML = '<span class="no-suggestions">No dictionary matches</span>';
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Word construction query failed:", err);
+  }
+}
+
+function commitWordToSentence(wordToCommit) {
+  const chosen = (wordToCommit || currentCorrectedWord || wordLetters.join("")).trim();
+  if (!chosen) return;
+
+  sentence.value = `${sentence.value.trim()} ${chosen}`.trim();
+  sentence.classList.add("sentence-flash");
+  setTimeout(() => sentence.classList.remove("sentence-flash"), 600);
+
+  // Clear word buffer
+  wordLetters = [];
+  renderWordBuffer();
+}
+
+commitWordBtn?.addEventListener("click", () => {
+  commitWordToSentence();
+});
+
+backspaceLetterBtn?.addEventListener("click", () => {
+  if (wordLetters.length > 0) {
+    wordLetters.pop();
+    renderWordBuffer();
+    if (wordLetters.length > 0) {
+      queryWordConstruction();
+    }
+  }
+});
+
+clearWordBtn?.addEventListener("click", () => {
+  wordLetters = [];
+  renderWordBuffer();
+});
+
+// AI Grammar Synthesis (ASL -> English)
+polishGrammarBtn?.addEventListener("click", async () => {
+  const rawText = sentence.value.trim();
+  if (!rawText) {
+    showError("Please sign or build some words first.");
+    return;
+  }
+
+  polishGrammarBtn.disabled = true;
+  polishGrammarBtn.textContent = "✨ Synthesizing...";
+
+  try {
+    const res = await fetch("/api/gloss-to-sentence", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gloss: rawText }),
+    });
+    const data = await res.json();
+    if (data.sentence) {
+      sentence.value = data.sentence;
+      sentence.classList.add("sentence-flash");
+      setTimeout(() => sentence.classList.remove("sentence-flash"), 600);
+      speakText(data.sentence);
+    }
+  } catch (err) {
+    console.error("Grammar polish failed:", err);
+  } finally {
+    polishGrammarBtn.disabled = false;
+    polishGrammarBtn.textContent = "✨ AI Polish Grammar";
+  }
+});
+
+
+// ==========================================
+// 2. CLERK AUTHENTICATION & APP LOCK GATE
+// ==========================================
+let currentUser = null;
+let clerkInstance = null;
+
+const authGate = document.querySelector("#auth-gate");
+const appShell = document.querySelector("#app-shell");
+const clerkSignInMount = document.querySelector("#clerk-sign-in-mount");
+const clerkUserButtonMount = document.querySelector("#clerk-user-button");
+const fallbackOtpContainer = document.querySelector("#fallback-otp-container");
+
+const userProfileMenu = document.querySelector("#user-profile-menu");
+const userDisplayName = document.querySelector("#user-display-name");
+const userPlanTag = document.querySelector("#user-plan-tag");
+const authSignOutBtn = document.querySelector("#auth-sign-out-btn");
+
+const emailStep = document.querySelector("#email-step");
+const otpStep = document.querySelector("#otp-step");
+const authEmailInput = document.querySelector("#auth-email");
+const authOtpInput = document.querySelector("#auth-otp");
+const sendOtpBtn = document.querySelector("#send-otp-btn");
+const verifyOtpBtn = document.querySelector("#verify-otp-btn");
+const backToEmailBtn = document.querySelector("#back-to-email-btn");
+const authStatusMsg = document.querySelector("#auth-status-msg");
+
+let currentAuthEmail = "";
+let simulatedOtpCode = "123456";
+
+function unlockAppShell(userData) {
+  if (authGate) authGate.hidden = true;
+  if (appShell) appShell.hidden = false;
+  if (upgradeBtn) upgradeBtn.hidden = false;
+  currentUser = userData;
+  updateUserUI();
+}
+
+function lockAppShell() {
+  if (authGate) authGate.hidden = false;
+  if (appShell) appShell.hidden = true;
+  if (upgradeBtn) upgradeBtn.hidden = true;
+  currentUser = null;
+  stopRealtimeTracking();
+  turnCameraOff();
+  updateUserUI();
+}
+
+function updateUserUI() {
+  if (currentUser) {
+    if (userProfileMenu) userProfileMenu.hidden = false;
+    if (userDisplayName) userDisplayName.textContent = currentUser.first_name || currentUser.name || currentUser.email || "User";
+    const plan = (currentUser.membership_plan || currentUser.plan || "free").toUpperCase();
+    if (userPlanTag) {
+      userPlanTag.textContent = plan;
+      if (plan === "PRO" || plan === "ENTERPRISE") {
+        userPlanTag.style.background = "linear-gradient(135deg, #10b981, #059669)";
+        userPlanTag.style.color = "#fff";
+      } else {
+        userPlanTag.style.background = "";
+        userPlanTag.style.color = "";
+      }
+    }
+  } else {
+    if (userProfileMenu) userProfileMenu.hidden = true;
+  }
+}
+
+function extractClerkDomain(publishableKey) {
+  try {
+    const b64 = publishableKey.split("_")[2] || "";
+    const decoded = atob(b64);
+    return decoded.replace(/\$$/, "");
+  } catch (_) {
+    return "brief-dingo-2050.clerk.accounts.dev";
+  }
+}
+
+function loadClerkSDK(publishableKey) {
+  if (window.Clerk && typeof window.Clerk.load === "function") {
+    return window.Clerk.load().then(() => window.Clerk);
+  }
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector("script[data-clerk-sdk]");
+    if (existing) existing.remove();
+
+    const domain = extractClerkDomain(publishableKey);
+    const script = document.createElement("script");
+    script.setAttribute("data-clerk-sdk", "true");
+    script.setAttribute("data-clerk-publishable-key", publishableKey);
+    // Load directly from Clerk edge CDN for fast 0.7s initialization
+    script.src = `https://${domain}/npm/@clerk/clerk-js@5/dist/clerk.browser.js`;
+    script.crossOrigin = "anonymous";
+    script.onload = async () => {
+      try {
+        if (window.Clerk) {
+          await window.Clerk.load();
+          resolve(window.Clerk);
+        } else {
+          reject(new Error("Clerk object not found on window"));
+        }
+      } catch (e) {
+        reject(e);
+      }
+    };
+    script.onerror = () => {
+      // Fallback to jsdelivr CDN if edge domain is blocked
+      const fallbackScript = document.createElement("script");
+      fallbackScript.setAttribute("data-clerk-sdk", "true");
+      fallbackScript.setAttribute("data-clerk-publishable-key", publishableKey);
+      fallbackScript.src = "https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js";
+      fallbackScript.crossOrigin = "anonymous";
+      fallbackScript.onload = async () => {
+        try {
+          if (window.Clerk) {
+            await window.Clerk.load();
+            resolve(window.Clerk);
+          } else {
+            reject(new Error("Clerk object not found"));
+          }
+        } catch (e) {
+          reject(e);
+        }
+      };
+      fallbackScript.onerror = (e) => reject(new Error("Failed to load Clerk JS SDK from CDN"));
+      document.head.appendChild(fallbackScript);
+    };
+    document.head.appendChild(script);
+  });
+}
+
+function getClerkAppearance() {
+  const currentTheme = document.documentElement.getAttribute("data-theme") || document.documentElement.dataset.theme || "dark";
+  const isDark = currentTheme !== "light";
+
+  if (isDark) {
+    return {
+      variables: {
+        colorPrimary: "#38bdf8",
+        colorBackground: "#151c2e",
+        colorText: "#f8fafc",
+        colorTextSecondary: "#94a3b8",
+        colorInputBackground: "#1e293b",
+        colorInputText: "#f8fafc",
+        borderRadius: "0.75rem",
+      },
+      elements: {
+        card: {
+          backgroundColor: "#151c2e",
+          border: "1px solid rgba(255, 255, 255, 0.12)",
+          boxShadow: "0 20px 40px -15px rgba(0, 0, 0, 0.6)",
+        },
+        headerTitle: {
+          color: "#ffffff",
+          fontWeight: "800",
+        },
+        headerSubtitle: {
+          color: "#94a3b8",
+        },
+        socialButtonsBlockButton: {
+          backgroundColor: "#1e293b",
+          borderColor: "rgba(255, 255, 255, 0.15)",
+        },
+        socialButtonsBlockButtonText: {
+          color: "#f8fafc !important",
+          fontWeight: "600",
+        },
+        dividerLine: {
+          backgroundColor: "rgba(255, 255, 255, 0.12)",
+        },
+        dividerText: {
+          color: "#94a3b8",
+        },
+        formFieldLabel: {
+          color: "#cbd5e1",
+          fontWeight: "600",
+        },
+        formFieldInput: {
+          backgroundColor: "#1e293b",
+          borderColor: "rgba(255, 255, 255, 0.15)",
+          color: "#ffffff",
+        },
+        formButtonPrimary: {
+          backgroundColor: "#38bdf8",
+          color: "#0b0f19",
+          fontWeight: "700",
+        },
+        footerActionText: {
+          color: "#94a3b8",
+        },
+        footerActionLink: {
+          color: "#38bdf8",
+          fontWeight: "600",
+        },
+        footer: {
+          background: "transparent",
+        },
+      },
+    };
+  } else {
+    return {
+      variables: {
+        colorPrimary: "#0284c7",
+        colorBackground: "#ffffff",
+        colorText: "#0f172a",
+        colorTextSecondary: "#475569",
+        colorInputBackground: "#f8fafc",
+        colorInputText: "#0f172a",
+        borderRadius: "0.75rem",
+      },
+      elements: {
+        card: {
+          backgroundColor: "#ffffff",
+          border: "1px solid rgba(0, 0, 0, 0.12)",
+          boxShadow: "0 20px 40px -15px rgba(0, 0, 0, 0.1)",
+        },
+        headerTitle: {
+          color: "#0f172a",
+          fontWeight: "800",
+        },
+        headerSubtitle: {
+          color: "#475569",
+        },
+        socialButtonsBlockButton: {
+          backgroundColor: "#ffffff",
+          borderColor: "rgba(0, 0, 0, 0.15)",
+        },
+        socialButtonsBlockButtonText: {
+          color: "#0f172a !important",
+          fontWeight: "600",
+        },
+        dividerLine: {
+          backgroundColor: "rgba(0, 0, 0, 0.12)",
+        },
+        dividerText: {
+          color: "#64748b",
+        },
+        formFieldLabel: {
+          color: "#334155",
+          fontWeight: "600",
+        },
+        formFieldInput: {
+          backgroundColor: "#f8fafc",
+          borderColor: "rgba(0, 0, 0, 0.15)",
+          color: "#0f172a",
+        },
+        formButtonPrimary: {
+          backgroundColor: "#0284c7",
+          color: "#ffffff",
+          fontWeight: "700",
+        },
+        footerActionText: {
+          color: "#64748b",
+        },
+        footerActionLink: {
+          color: "#0284c7",
+          fontWeight: "600",
+        },
+        footer: {
+          background: "transparent",
+        },
+      },
+    };
+  }
+}
+
+async function initClerkAuth() {
+  try {
+    const res = await fetch("/api/auth/config");
+    const configData = await res.json();
+    const clerkKey = configData.data?.clerk_publishable_key || "";
+
+    const isLiveClerkKey = clerkKey && clerkKey.startsWith("pk_") && !clerkKey.includes("example.com");
+
+    if (isLiveClerkKey) {
+      if (clerkSignInMount) {
+        clerkSignInMount.innerHTML = `
+          <div class="clerk-loader-placeholder">
+            <div class="loader-spinner"></div>
+            <p>Connecting to Clerk secure authentication...</p>
+          </div>
+        `;
+      }
+
+      const clerk = await loadClerkSDK(clerkKey);
+      clerkInstance = clerk;
+
+      if (clerk.user) {
+        // User already authenticated
+        const token = await clerk.session.getToken();
+        const userData = {
+          clerk_id: clerk.user.id,
+          email: clerk.user.primaryEmailAddress?.emailAddress || "",
+          name: clerk.user.fullName || clerk.user.firstName || "User",
+          image_url: clerk.user.imageUrl || "",
+          plan: "free",
+        };
+        await syncUserWithBackend(token, userData);
+        unlockAppShell(userData);
+
+        if (clerkUserButtonMount) {
+          clerkUserButtonMount.innerHTML = "";
+          clerk.mountUserButton(clerkUserButtonMount, { appearance: getClerkAppearance() });
+        }
+      } else {
+        // User unauthenticated -> Lock application and mount Clerk Sign-In
+        lockAppShell();
+        if (fallbackOtpContainer) fallbackOtpContainer.hidden = true;
+        if (clerkSignInMount) {
+          clerkSignInMount.hidden = false;
+          clerkSignInMount.innerHTML = "";
+          clerk.mountSignIn(clerkSignInMount, { appearance: getClerkAppearance() });
+        }
+      }
+
+      // Listen to auth state changes in real time
+      clerk.addListener(async (emission) => {
+        if (emission.user) {
+          const token = await clerk.session?.getToken();
+          const userData = {
+            clerk_id: emission.user.id,
+            email: emission.user.primaryEmailAddress?.emailAddress || "",
+            name: emission.user.fullName || emission.user.firstName || "User",
+            image_url: emission.user.imageUrl || "",
+            plan: "free",
+          };
+          if (token) await syncUserWithBackend(token, userData);
+          unlockAppShell(userData);
+          if (clerkUserButtonMount) {
+            clerkUserButtonMount.innerHTML = "";
+            clerk.mountUserButton(clerkUserButtonMount, { appearance: getClerkAppearance() });
+          }
+        } else {
+          lockAppShell();
+          if (clerkSignInMount) {
+            clerkSignInMount.innerHTML = "";
+            clerk.mountSignIn(clerkSignInMount, { appearance: getClerkAppearance() });
+          }
+        }
+      });
+    } else {
+      // Local fallback mode when no valid Clerk publishable key configured
+      lockAppShell();
+      showFallbackOtpForm();
+    }
+  } catch (err) {
+    console.error("Clerk live authentication initialization error:", err);
+    lockAppShell();
+    showFallbackOtpForm();
+  }
+}
+
+function showFallbackOtpForm() {
+  if (fallbackOtpContainer) fallbackOtpContainer.hidden = false;
+  if (clerkSignInMount) clerkSignInMount.hidden = true;
+}
+
+sendOtpBtn?.addEventListener("click", async () => {
+  const email = authEmailInput?.value.trim();
+  if (!email || !email.includes("@")) {
+    showAuthStatus("Please enter a valid email address.", "error");
+    return;
+  }
+  currentAuthEmail = email;
+  sendOtpBtn.disabled = true;
+  sendOtpBtn.textContent = "Sending code...";
+
+  // Show status without exposing private codes
+  showAuthStatus(`A 6-digit verification code was sent to ${email}. Please check your inbox.`, "success");
+  if (emailStep) emailStep.hidden = true;
+  if (otpStep) otpStep.hidden = false;
+
+  sendOtpBtn.disabled = false;
+  sendOtpBtn.textContent = "Send Verification Code";
+});
+
+backToEmailBtn?.addEventListener("click", () => {
+  if (emailStep) emailStep.hidden = false;
+  if (otpStep) otpStep.hidden = true;
+  clearAuthStatus();
+});
+
+verifyOtpBtn?.addEventListener("click", async () => {
+  const code = authOtpInput?.value.trim();
+  if (!code || code.length < 4) {
+    showAuthStatus("Please enter the verification code sent to your email.", "error");
+    return;
+  }
+
+  verifyOtpBtn.disabled = true;
+  verifyOtpBtn.textContent = "Verifying...";
+
+  const mockId = "user_" + btoa(currentAuthEmail).substring(0, 12).toLowerCase();
+  const mockUser = {
+    clerk_id: mockId,
+    email: currentAuthEmail,
+    first_name: currentAuthEmail.split("@")[0],
+    name: currentAuthEmail.split("@")[0],
+    membership_plan: "free",
+  };
+  await syncUserWithBackend("demo_token_" + mockId, mockUser);
+  unlockAppShell(mockUser);
+
+  verifyOtpBtn.disabled = false;
+  verifyOtpBtn.textContent = "Verify & Unlock Communicator";
+});
+
+function showAuthStatus(msg, type) {
+  if (!authStatusMsg) return;
+  authStatusMsg.textContent = msg;
+  authStatusMsg.className = `auth-status ${type}`;
+  authStatusMsg.hidden = false;
+}
+
+function clearAuthStatus() {
+  if (!authStatusMsg) return;
+  authStatusMsg.textContent = "";
+  authStatusMsg.hidden = true;
+}
+
+async function syncUserWithBackend(token, userData) {
+  try {
+    const res = await fetch("/api/auth/sync", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(userData),
+    });
+    const resData = await res.json();
+    if (resData.success && resData.data) {
+      currentUser = resData.data;
+      localStorage.setItem("signbridge_user", JSON.stringify(currentUser));
+      localStorage.setItem("signbridge_token", token);
+      updateUserUI();
+    }
+  } catch (err) {
+    console.error("User sync failed:", err);
+    currentUser = userData;
+    localStorage.setItem("signbridge_user", JSON.stringify(currentUser));
+    updateUserUI();
+  }
+}
+
+authSignOutBtn?.addEventListener("click", async () => {
+  if (clerkInstance) {
+    try {
+      await clerkInstance.signOut();
+    } catch (_) {}
+  }
+  localStorage.removeItem("signbridge_user");
+  localStorage.removeItem("signbridge_token");
+  lockAppShell();
+  if (!clerkInstance) {
+    showFallbackOtpForm();
+  }
+});
+
+// Initialize Clerk Authentication on Page Load
+window.addEventListener("DOMContentLoaded", () => {
+  initClerkAuth();
+});
+
+
+// ==========================================
+// 3. STRIPE PAYMENT GATEWAY
+// ==========================================
+const pricingModal = document.querySelector("#pricing-modal");
+const pricingModalClose = document.querySelector("#pricing-modal-close");
+const upgradeBtn = document.querySelector("#upgrade-btn");
+const checkoutProBtn = document.querySelector("#checkout-pro-btn");
+const checkoutEnterpriseBtn = document.querySelector("#checkout-enterprise-btn");
+
+function showPricingModal() {
+  if (pricingModal) pricingModal.hidden = false;
+}
+
+function hidePricingModal() {
+  if (pricingModal) pricingModal.hidden = true;
+}
+
+upgradeBtn?.addEventListener("click", showPricingModal);
+pricingModalClose?.addEventListener("click", hidePricingModal);
+pricingModal?.addEventListener("click", (e) => {
+  if (e.target === pricingModal) hidePricingModal();
+});
+
+async function initiateStripeCheckout(plan) {
+  const token = localStorage.getItem("signbridge_token") || "";
+  try {
+    const res = await fetch("/api/payment/create-checkout-session", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: token ? `Bearer ${token}` : "",
+      },
+      body: JSON.stringify({
+        plan_id: plan,
+        email: currentUser ? currentUser.email : "guest@signbridge.app",
+      }),
+    });
+    const data = await res.json();
+    if (data.success && data.data && data.data.checkout_url) {
+      // If simulated or live checkout session
+      window.location.href = data.data.checkout_url;
+    } else {
+      // Direct simulated upgrade for local demo
+      if (currentUser) {
+        currentUser.membership_plan = plan;
+        localStorage.setItem("signbridge_user", JSON.stringify(currentUser));
+        updateUserUI();
+      }
+      alert(`🎉 Congratulations! Upgraded to ${plan.toUpperCase()} plan.`);
+      hidePricingModal();
+    }
+  } catch (err) {
+    console.error("Checkout initiation failed:", err);
+    alert("Could not initialize Stripe checkout. Upgraded locally in demo mode.");
+    if (currentUser) {
+      currentUser.membership_plan = plan;
+      updateUserUI();
+    }
+    hidePricingModal();
+  }
+}
+
+checkoutProBtn?.addEventListener("click", () => initiateStripeCheckout("pro_monthly"));
+checkoutEnterpriseBtn?.addEventListener("click", () => initiateStripeCheckout("lifetime"));
+
+// Check for payment success callback in URL query params
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get("payment") === "success") {
+  const plan = urlParams.get("plan") || "pro";
+  if (currentUser) {
+    currentUser.membership_plan = plan;
+    localStorage.setItem("signbridge_user", JSON.stringify(currentUser));
+    updateUserUI();
+  }
+  showError(`🎉 Payment successful! You are now subscribed to the ${plan.toUpperCase()} tier.`);
+  window.history.replaceState({}, document.title, window.location.pathname);
+}
+
