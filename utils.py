@@ -60,38 +60,38 @@ def normalize_landmarks(landmark_list):
     return pts.flatten()  # length 63
 
 
+# In utils.py: Update extract_feature_vector
 def extract_feature_vector(multi_hand_landmarks, multi_handedness=None):
-    """
-    Builds a FIXED-LENGTH feature vector (length 126) from MediaPipe's
-    detection result for a single frame.
-
-    Strict Hand Slot Assignment:
-      - Slot 0 (features 0..62): Left hand
-      - Slot 1 (features 63..125): Right hand
-    """
     vector = np.zeros(FEATURE_VECTOR_LENGTH, dtype=np.float32)
 
     if not multi_hand_landmarks:
         return vector
 
-    for idx, hand_landmarks in enumerate(multi_hand_landmarks):
+    # If only 1 hand is detected, ALWAYS populate Slot 0 (Primary) 
+    # to maintain strict feature consistency regardless of Left/Right inversion
+    if len(multi_hand_landmarks) == 1:
+        coords = [(lm.x, lm.y, lm.z) for lm in multi_hand_landmarks[0].landmark]
+        norm = normalize_landmarks(coords)
+        vector[0:FEATURES_PER_HAND] = norm
+        return vector
+
+    # Multi-hand assignment logic for 2-hand gestures
+    for idx, hand_landmarks in enumerate(multi_hand_landmarks[:2]):
         label = None
         if multi_handedness is not None and idx < len(multi_handedness):
-            label = multi_handedness[idx].classification[0].label  # "Left" or "Right"
+            label = multi_handedness[idx].classification[0].label
 
         coords = [(lm.x, lm.y, lm.z) for lm in hand_landmarks.landmark]
         norm = normalize_landmarks(coords)
 
-        if label == "Left":
-            slot = 0
-        elif label == "Right":
-            slot = 1
-        else:
-            wrist_x = coords[0][0]
-            slot = 0 if wrist_x < 0.5 else 1
-
+        slot = 0 if label == "Left" else 1
         start = slot * FEATURES_PER_HAND
-        vector[start:start + FEATURES_PER_HAND] = norm
+        # Avoid collision if MediaPipe misclassifies both hands with the same label
+        if np.any(vector[start : start + FEATURES_PER_HAND]):
+            slot = 1 if slot == 0 else 0
+            start = slot * FEATURES_PER_HAND
+
+        vector[start : start + FEATURES_PER_HAND] = norm
 
     return vector
 
