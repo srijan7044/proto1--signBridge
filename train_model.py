@@ -28,8 +28,8 @@ MODEL_DIR = os.path.join(os.path.dirname(__file__), "model")
 MODEL_PATH = os.path.join(MODEL_DIR, "sign_classifier.joblib")
 LABELS_PATH = os.path.join(MODEL_DIR, "labels.joblib")
 
-#WORDS_CSV = os.path.join(DATA_DIR, "gestures.csv")
-LETTERS_CSV = os.path.join(DATA_DIR, "gestures_letters_SignAlphaSet_O.csv")
+# Sign-to-Text classification dataset
+LETTERS_CSV = os.path.join(DATA_DIR, "gestures_letters_self.csv")
 
 
 def load_combined_dataset():
