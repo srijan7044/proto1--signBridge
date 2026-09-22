@@ -7,7 +7,7 @@ import { initWordBuilder } from "./word-builder.js";
 import { initAnimationControls, initSpeechRecognition } from "./animation.js";
 import { initClerkAuth, initAuthControls } from "./auth.js";
 import { initThemeToggle } from "./theme.js";
-import { initPaymentControls, checkPaymentCallback } from "./payments.js";
+import { initPaymentControls } from "./payments.js";
 
 initDOMElements();
 window.predictFrame = predictFrame;
@@ -45,6 +45,5 @@ initSpeechRecognition();
 initAuthControls();
 initClerkAuth();
 initPaymentControls();
-checkPaymentCallback();
 
 loadLabelCount();

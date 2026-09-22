@@ -47,5 +47,5 @@ def create_app():
 
 if __name__ == "__main__":
     app = create_app()
-    print(f"🚀 SignBridge Server starting on http://{Config.HOST}:{Config.PORT}")
+    print(f"SignBridge Server starting on http://{Config.HOST}:{Config.PORT}")
     app.run(host=Config.HOST, port=Config.PORT, debug=Config.DEBUG)

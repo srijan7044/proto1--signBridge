@@ -74,18 +74,21 @@ def require_auth(f):
         return f(*args, **kwargs)
     return decorated
 
-
 def optional_auth(f):
     """Decorator for routes where authentication is optional."""
     @wraps(f)
     def decorated(*args, **kwargs):
+        g.user_claims = None
+        g.clerk_id = None
         token = get_token_from_header()
         if token:
-            g.user_claims = verify_clerk_token(token)
-            if g.user_claims:
-                g.clerk_id = g.user_claims.get("sub") or g.user_claims.get("userId")
-        else:
-            g.user_claims = None
-            g.clerk_id = None
+            claims = verify_clerk_token(token)
+            if claims:
+                g.user_claims = claims
+                g.clerk_id = (
+                    claims.get("sub")
+                    or claims.get("userId")
+                    or claims.get("id")
+                )
         return f(*args, **kwargs)
     return decorated
