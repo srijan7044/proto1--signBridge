@@ -33,3 +33,7 @@ class PaymentModel:
     @staticmethod
     def get_user_payments(user_id):
         return list(db_manager.payments.find({"user_id": user_id}))
+
+    @staticmethod
+    def get_payment(session_id):
+        return db_manager.payments.find_one({"session_id": session_id})

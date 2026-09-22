@@ -19,3 +19,4 @@ SignBridge_IEEE_Conference_Paper.docx
 SignBridge_IEEE_Conference_Paper.pdf
 model/*.joblib
 .env
+.env.example

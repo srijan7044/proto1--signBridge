@@ -50,6 +50,14 @@ class Config:
     STRIPE_PRICE_PRO_MONTHLY = os.getenv("STRIPE_PRICE_PRO_MONTHLY", "price_signbridge_pro_monthly")
     STRIPE_PRICE_LIFETIME = os.getenv("STRIPE_PRICE_LIFETIME", "price_signbridge_lifetime")
 
+    @classmethod
+    def log_stripe_version(cls):
+        if cls.STRIPE_SECRET_KEY:
+            import stripe
+            logger = __import__("logging").getLogger("signbridge.config")
+            logger.info("Stripe SDK version: %s", getattr(stripe, "_version", "unknown"))
+            logger.info("Stripe key type: %s", "test" if cls.STRIPE_SECRET_KEY.startswith("sk_test_") else "live")
+
     # Pricing Tiers
     PLANS = {
         "free": {
