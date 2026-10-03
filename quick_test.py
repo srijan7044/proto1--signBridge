@@ -116,8 +116,8 @@ def quick_test():
     # Priority order for dataset files
     DATA_PATHS = [
         
-        "data/gestures_skeleton_normalized.csv",
-        "data/gestures.csv"
+        "data/gestures_letters_self.csv",
+        "data/gestures_letters_SignAlphaSet_1.csv"
     ]
 
     print("=" * 60)
