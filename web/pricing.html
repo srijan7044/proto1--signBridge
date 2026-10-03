@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0f172a" />
+    <title>SignBridge — Pricing</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css" />
+    <link rel="stylesheet" href="/static/components.css" />
+    <link rel="stylesheet" href="/static/pricing.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand-group">
+        <span class="brand-icon">🤟</span>
+        <a class="brand" href="/" aria-label="SignBridge home">SignBridge</a>
+        <span class="badge">Bi-Directional</span>
+      </div>
+      <div class="topbar-actions">
+        <a href="/app.html" class="secondary-button btn-sm">Launch Communicator</a>
+          <button id="theme-toggle" class="secondary-button" type="button" aria-pressed="true">
+            🌙 Dark theme
+          </button>
+      </div>
+    </header>
+<script type="module" src="./js/theme.js"></script>
+    <main class="pricing-shell">
+      <section class="pricing-hero">
+        <h1>SignBridge Premium Plans</h1>
+        <p class="pricing-hero-desc">
+          Unlock unlimited translation history, dataset exports, and high-speed cloud recognition.
+        </p>
+      </section>
+
+      <div class="pricing-grid">
+        <!-- Free Tier -->
+        <div class="pricing-card">
+          <div class="pricing-header">
+            <h3>Free Explorer</h3>
+            <p class="price">$0 <span>/ month</span></p>
+          </div>
+          <ul class="pricing-features">
+            <li>✓ Real-time webcam sign detection</li>
+            <li>✓ Text-to-sign 3D animation</li>
+            <li>✓ Letter-to-word auto-spelling</li>
+            <li>✓ 20 saved history items</li>
+          </ul>
+          <button class="secondary-button full-width" disabled>Current Plan</button>
+        </div>
+
+        <!-- Pro Tier (Popular) -->
+        <div class="pricing-card pricing-card-featured">
+          <div class="featured-tag">MOST POPULAR</div>
+          <div class="pricing-header">
+            <h3>Pro Communicator</h3>
+            <p class="price">$9.99 <span>/ month</span></p>
+          </div>
+          <ul class="pricing-features">
+            <li>✓ Everything in Free</li>
+            <li>✓ Unlimited AI Grammar Synthesis</li>
+            <li>✓ Full CSV Dataset Import & Export</li>
+            <li>✓ Cloud Translation Synchronization</li>
+            <li>✓ Priority Recognition Engine</li>
+          </ul>
+          <button id="checkout-pro-btn" class="primary-button full-width" data-plan="pro">
+            Upgrade to Pro (Stripe)
+          </button>
+        </div>
+
+        <!-- Enterprise Tier -->
+        <div class="pricing-card">
+          <div class="pricing-header">
+            <h3>Enterprise & School</h3>
+            <p class="price">$29.99 <span>/ month</span></p>
+          </div>
+          <ul class="pricing-features">
+            <li>✓ Everything in Pro</li>
+            <li>✓ Custom Gesture Training Models</li>
+            <li>✓ Multi-user classroom management</li>
+            <li>✓ Dedicated API Access & Support</li>
+          </ul>
+          <button id="checkout-enterprise-btn" class="primary-button full-width" data-plan="enterprise">
+            Get Enterprise
+          </button>
+        </div>
+      </div>
+
+      <div class="pricing-footer">
+        <p>All plans include bank-level security powered by Clerk Authentication.</p>
+        <p>Questions? Contact <a href="mailto:support@signbridge.app">support@signbridge.app</a></p>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <p>SignBridge © 2026 — Bi-Directional Sign Language Accessibility Suite</p>
+    </footer>
+
+    <!-- JavaScript Modules -->
+    <script type="module" src="/static/js/pricing-page.js"></script>
+  </body>
+</html>
