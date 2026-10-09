@@ -9,7 +9,7 @@ from backend.db import db_manager
 
 class PaymentModel:
     @staticmethod
-    def record_checkout_session(session_id, user_id, plan, amount, currency="usd", status="pending"):
+    def record_checkout_session(session_id, user_id, plan, amount, currency="usd", status="pending", payment_type="subscription"):
         doc = {
             "session_id": session_id,
             "user_id": user_id,
@@ -17,16 +17,19 @@ class PaymentModel:
             "amount": amount,
             "currency": currency,
             "status": status,
+            "payment_type": payment_type,  # subscription, lifetime, custom_training
             "created_at": datetime.utcnow(),
         }
         res = db_manager.payments.insert_one(doc)
         return str(res.inserted_id)
 
     @staticmethod
-    def update_payment_status(session_id, status, stripe_customer_id=None):
+    def update_payment_status(session_id, status, stripe_customer_id=None, stripe_subscription_id=None):
         update = {"status": status, "updated_at": datetime.utcnow()}
         if stripe_customer_id:
             update["stripe_customer_id"] = stripe_customer_id
+        if stripe_subscription_id:
+            update["stripe_subscription_id"] = stripe_subscription_id
         db_manager.payments.update_one({"session_id": session_id}, {"$set": update})
         return db_manager.payments.find_one({"session_id": session_id})
 
@@ -37,3 +40,11 @@ class PaymentModel:
     @staticmethod
     def get_payment(session_id):
         return db_manager.payments.find_one({"session_id": session_id})
+
+    @staticmethod
+    def get_payments_by_type(payment_type, status=None):
+        """Get payments by type (subscription, lifetime, custom_training)."""
+        query = {"payment_type": payment_type}
+        if status:
+            query["status"] = status
+        return list(db_manager.payments.find(query))

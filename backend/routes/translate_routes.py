@@ -89,17 +89,35 @@ def list_labels():
 
 
 @translate_bp.post("/predict")
+@optional_auth
 def predict_frame():
     """
     Accepts an uploaded image/frame and returns predicted sign, confidence, and annotated preview.
+    Supports optional custom_model_id parameter to use a user-owned custom model.
     """
     if "image" not in request.files:
         return api_response(success=False, error="No image file provided in form-data.", status_code=400)
 
-    try:
-        model, _ = load_model()
-    except Exception as e:
-        return api_response(success=False, error=f"Classifier unavailable: {e}", status_code=500)
+    custom_model_id = request.args.get("custom_model_id") or request.form.get("custom_model_id")
+    target_model = None
+
+    if custom_model_id:
+        if not g.clerk_id:
+            return api_response(success=False, error="Authentication required to use custom models", status_code=401)
+        from backend.models.custom_training_model import UserCustomModel
+        workspace = UserCustomModel.get_workspace(g.clerk_id, custom_model_id)
+        if not workspace or workspace.get("status") != "trained" or not workspace.get("model_path"):
+            return api_response(success=False, error="Custom model not found or not trained.", status_code=404)
+        model_path = workspace["model_path"]
+        if not os.path.exists(model_path):
+            return api_response(success=False, error="Custom model file missing.", status_code=404)
+        loaded = joblib.load(model_path)
+        target_model = loaded["model"] if isinstance(loaded, dict) else loaded
+    else:
+        try:
+            target_model, _ = load_model()
+        except Exception as e:
+            return api_response(success=False, error=f"Classifier unavailable: {e}", status_code=500)
 
     file = request.files["image"]
     image_bytes = file.read()
@@ -109,7 +127,6 @@ def predict_frame():
     try:
         pil_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         image_np = np.array(pil_img)
-        h, w, _ = image_np.shape
 
         detector = get_detector()
         results = detector.process(image_np)
@@ -121,15 +138,16 @@ def predict_frame():
             feats = extract_feature_vector(
                 results.multi_hand_landmarks, results.multi_handedness
             )
-            proba = model.predict_proba([feats])[0]
+            proba = target_model.predict_proba([feats])[0]
             best_idx = int(np.argmax(proba))
-            label = str(model.classes_[best_idx])
+            label = str(target_model.classes_[best_idx])
             confidence = float(proba[best_idx])
 
         return jsonify({
             "label": label,
             "confidence": confidence,
             "image": None,
+            "custom_model_id": custom_model_id
         })
     except Exception as e:
         logger.exception("Prediction failed")

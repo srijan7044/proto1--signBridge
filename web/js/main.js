@@ -8,12 +8,17 @@ import { initAnimationControls, initSpeechRecognition } from "./animation.js";
 import { initClerkAuth, initAuthControls } from "./auth.js";
 import { initThemeToggle } from "./theme.js";
 import { initPaymentControls } from "./payments.js";
+import { initUsageTracking } from "./usage.js";
+import { initLanguageSelector, loadUserLanguages } from "./language.js";
+import { initCustomTraining } from "./custom-training.js";
+import { initAdmin } from "./admin.js";
 
 initDOMElements();
 window.predictFrame = predictFrame;
 
 initThemeToggle();
 
+// ── Tab navigation ────────────────────────────────────────────────
 const tabSignToVoice = document.getElementById("tab-sign-to-voice");
 const tabVoiceToSign = document.getElementById("tab-voice-to-sign");
 const modeSignToVoice = document.getElementById("mode-sign-to-voice");
@@ -37,6 +42,7 @@ if (tabVoiceToSign) {
   });
 }
 
+// ── Module initialization ─────────────────────────────────────────
 initCameraControls();
 initRecognitionControls();
 initWordBuilder();
@@ -45,5 +51,16 @@ initSpeechRecognition();
 initAuthControls();
 initClerkAuth();
 initPaymentControls();
+initUsageTracking();
+initLanguageSelector();
+initCustomTraining();
+initAdmin();
 
 loadLabelCount();
+
+// ── React to successful login via event (replaces broken window wrapper) ──
+window.addEventListener("signbridge:user-unlocked", (e) => {
+  const userData = e.detail || {};
+  // Load available languages for this user
+  loadUserLanguages();
+});

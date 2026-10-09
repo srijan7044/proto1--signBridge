@@ -13,6 +13,10 @@ from backend.routes.auth_routes import auth_bp
 from backend.routes.payment_routes import payment_bp
 from backend.routes.gesture_routes import gesture_bp
 from backend.routes.translate_routes import translate_bp
+from backend.routes.usage_routes import usage_bp
+from backend.routes.language_routes import language_bp
+from backend.routes.custom_training_routes import custom_training_bp
+from backend.routes.admin_routes import admin_bp
 
 
 def create_app():
@@ -28,6 +32,10 @@ def create_app():
     app.register_blueprint(payment_bp)
     app.register_blueprint(gesture_bp)
     app.register_blueprint(translate_bp)
+    app.register_blueprint(usage_bp)
+    app.register_blueprint(language_bp)
+    app.register_blueprint(custom_training_bp)
+    app.register_blueprint(admin_bp)
 
     # Serve Root Index
     @app.route("/")

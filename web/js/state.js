@@ -52,6 +52,24 @@ export function initDOMElements() {
     "email-step", "otp-step", "auth-email", "auth-otp",
     "send-otp-btn", "verify-otp-btn", "back-to-email-btn", "auth-status-msg",
     "label-count",
+    // New elements for subscription features
+    "usage-dashboard", "usage-fill", "usage-used", "usage-remaining",
+    "usage-message", "upgrade-from-usage",
+    "language-modal", "language-modal-close", "language-list",
+    "language-upgrade-message",
+    "custom-training-modal", "custom-training-modal-close", "custom-training-content",
+    "limit-reached-modal", "limit-modal-close", "limit-message",
+    "limit-details", "limit-upgrade-premium", "limit-upgrade-lifetime",
+    "limit-continue-free",
+    "custom-training-page", "training-request-form", "training-language",
+    "training-language-id", "training-country", "training-variant",
+    "training-description", "training-dataset", "submit-training-request",
+    "training-step-1", "training-step-2", "training-step-3",
+    "training-pay-btn", "training-payment-status", "training-status-display",
+    "my-training-requests", "training-requests-list",
+    "admin-dashboard-page", "admin-dashboard-content",
+    "pricing-modal-grid",
+    "admin-btn", "billing-btn", "custom-training-btn", "language-selector-btn", "user-usage-summary", "user-usage-text",
   ];
 
   selectors.forEach((id) => {

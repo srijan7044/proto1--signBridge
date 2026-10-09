@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="/static/voice-to-sign.css" />
     <link rel="stylesheet" href="/static/auth.css" />
     <link rel="stylesheet" href="/static/pricing.css" />
+    <link rel="stylesheet" href="/static/admin.css" />
   </head>
   <body>
     <header class="topbar">
@@ -26,6 +27,11 @@
         <button id="upgrade-btn" class="pro-badge-button" type="button" hidden>
           ⭐ Upgrade to Pro
         </button>
+        <div id="language-selector-btn" class="language-selector" hidden>
+          <span id="current-language-flag">🌐</span>
+          <span id="current-language-name">English</span>
+          <span class="dropdown-arrow">▼</span>
+        </div>
         <div id="auth-section" class="auth-section">
           <!-- Official Clerk User Button Mount -->
           <div id="clerk-user-button"></div>
@@ -33,6 +39,12 @@
             <span id="user-avatar-badge" class="user-avatar-badge">👤</span>
             <span id="user-display-name" class="user-display-name">User</span>
             <span id="user-plan-tag" class="badge-subtle">FREE</span>
+            <div id="user-usage-summary" class="user-usage-summary" hidden>
+              <span class="usage-mini">Usage: <span id="user-usage-text">0%</span></span>
+            </div>
+            <button id="billing-btn" class="secondary-button btn-sm" type="button">Billing</button>
+            <button id="custom-training-btn" class="secondary-button btn-sm" type="button">Training</button>
+            <button id="admin-btn" class="secondary-button btn-sm" type="button" hidden>Admin</button>
             <button id="auth-sign-out-btn" class="secondary-button btn-sm" type="button">Sign Out</button>
           </div>
         </div>
@@ -203,6 +215,24 @@
               </button>
             </div>
 
+            <!-- Usage Dashboard for Free Users -->
+            <div id="usage-dashboard" class="usage-dashboard" hidden>
+              <h3>📊 Monthly Usage</h3>
+              <div class="usage-progress">
+                <div class="usage-bar">
+                  <div id="usage-fill" class="usage-fill"></div>
+                </div>
+                <div class="usage-stats">
+                  <span id="usage-used">0s used</span>
+                  <span id="usage-remaining">14400s remaining</span>
+                </div>
+              </div>
+              <p id="usage-message" class="usage-message"></p>
+              <button id="upgrade-from-usage" class="primary-button full-width btn-sm" type="button" hidden>
+                Upgrade for Unlimited Usage
+              </button>
+            </div>
+
             <p class="small-note">
               Tip: Keep your hand centered under good lighting for high prediction accuracy.
             </p>
@@ -356,62 +386,132 @@
         <button id="pricing-modal-close" class="modal-close" type="button" aria-label="Close modal">&times;</button>
         <div class="modal-header">
           <span class="modal-icon">⚡</span>
-          <h2>SignBridge Premium Plans</h2>
-          <p class="modal-sub">Unlock unlimited translation history, dataset exports, and high-speed cloud recognition</p>
+          <h2>SignBridge Subscription Plans</h2>
+          <p class="modal-sub">Choose the plan that fits your communication needs</p>
         </div>
-        <div class="pricing-grid">
-          <!-- Free Tier -->
-          <div class="pricing-card">
-            <div class="pricing-header">
-              <h3>Free Explorer</h3>
-              <p class="price">$0 <span>/ month</span></p>
-            </div>
-            <ul class="pricing-features">
-              <li>✓ Real-time webcam sign detection</li>
-              <li>✓ Text-to-sign 3D animation</li>
-              <li>✓ Letter-to-word auto-spelling</li>
-              <li>✓ 20 saved history items</li>
-            </ul>
-            <button class="secondary-button full-width" disabled>Current Plan</button>
-          </div>
-
-          <!-- Pro Tier (Popular) -->
-          <div class="pricing-card pricing-card-featured">
-            <div class="featured-tag">MOST POPULAR</div>
-            <div class="pricing-header">
-              <h3>Pro Communicator</h3>
-              <p class="price">$9.99 <span>/ month</span></p>
-            </div>
-            <ul class="pricing-features">
-              <li>✓ Everything in Free</li>
-              <li>✓ Unlimited AI Grammar Synthesis</li>
-              <li>✓ Full CSV Dataset Import & Export</li>
-              <li>✓ Cloud Translation Synchronization</li>
-              <li>✓ Priority Recognition Engine</li>
-            </ul>
-            <button id="checkout-pro-btn" class="primary-button full-width" data-plan="pro">
-              Upgrade to Pro (Stripe)
-            </button>
-          </div>
-
-          <!-- Enterprise Tier -->
-          <div class="pricing-card">
-            <div class="pricing-header">
-              <h3>Enterprise & School</h3>
-              <p class="price">$29.99 <span>/ month</span></p>
-            </div>
-            <ul class="pricing-features">
-              <li>✓ Everything in Pro</li>
-              <li>✓ Custom Gesture Training Models</li>
-              <li>✓ Multi-user classroom management</li>
-              <li>✓ Dedicated API Access & Support</li>
-            </ul>
-            <button id="checkout-enterprise-btn" class="primary-button full-width" data-plan="enterprise">
-              Get Enterprise
-            </button>
-          </div>
+        <div class="pricing-grid" id="pricing-modal-grid">
+          <!-- Plans rendered dynamically by pricing-page.js -->
         </div>
       </div>
+    </div>
+
+    <!-- LANGUAGE SELECTOR MODAL -->
+    <div id="language-modal" class="modal-backdrop" hidden>
+      <div class="modal-card">
+        <button id="language-modal-close" class="modal-close" type="button" aria-label="Close modal">&times;</button>
+        <div class="modal-header">
+          <span class="modal-icon">🌍</span>
+          <h2>Select Language</h2>
+          <p class="modal-sub">Choose your preferred sign language</p>
+        </div>
+        <div id="language-list" class="language-list"></div>
+        <div id="language-upgrade-message" class="upgrade-message" hidden></div>
+      </div>
+    </div>
+
+    <!-- CUSTOM TRAINING MODAL -->
+    <div id="custom-training-modal" class="modal-backdrop" hidden>
+      <div class="modal-card modal-card-wide">
+        <button id="custom-training-modal-close" class="modal-close" type="button" aria-label="Close modal">&times;</button>
+        <div class="modal-header">
+          <span class="modal-icon">🎯</span>
+          <h2>Custom Model Training</h2>
+          <p class="modal-sub">Request a custom sign language model for your language</p>
+        </div>
+        <div id="custom-training-content">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+    </div>
+
+    <!-- LIMIT REACHED MODAL -->
+    <div id="limit-reached-modal" class="modal-backdrop" hidden>
+      <div class="modal-card">
+        <button id="limit-modal-close" class="modal-close" type="button" aria-label="Close modal">&times;</button>
+        <div class="modal-header">
+          <span class="modal-icon">⏱️</span>
+          <h2>Monthly Allowance Exhausted</h2>
+          <p class="modal-sub" id="limit-message"></p>
+        </div>
+        <div class="limit-details" id="limit-details"></div>
+        <div class="modal-actions">
+          <button id="limit-upgrade-premium" class="primary-button" type="button">Upgrade to Premium ($29.48/mo)</button>
+          <button id="limit-upgrade-lifetime" class="secondary-button" type="button">Lifetime Access ($2,000)</button>
+          <button id="limit-continue-free" class="secondary-button btn-sm" type="button">Continue with Limited Access</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CUSTOM TRAINING REQUEST PAGE (embedded in app) -->
+    <div id="custom-training-page" class="page-section" hidden>
+      <div class="page-header">
+        <h1>Custom Model Training</h1>
+        <p>Request a custom sign language model trained for your specific language</p>
+      </div>
+      <div id="custom-training-steps">
+        <!-- Step 1: Request Form -->
+        <div id="training-step-1" class="training-step">
+          <h3>Step 1: Submit Request</h3>
+          <form id="training-request-form">
+            <div class="form-group">
+              <label for="training-language">Language Name *</label>
+              <input type="text" id="training-language" placeholder="e.g., Hindi, Tamil, Spanish" required />
+            </div>
+            <div class="form-group">
+              <label for="training-language-id">Language Code *</label>
+              <input type="text" id="training-language-id" placeholder="e.g., hi, ta, es" required />
+              <small>ISO 639-1 code (2-3 letters)</small>
+            </div>
+            <div class="form-group">
+              <label for="training-country">Country/Region</label>
+              <input type="text" id="training-country" placeholder="e.g., India, Spain" />
+            </div>
+            <div class="form-group">
+              <label for="training-variant">Variant/Dialect</label>
+              <input type="text" id="training-variant" placeholder="e.g., ISL, LSE, ASL" />
+            </div>
+            <div class="form-group">
+              <label for="training-description">Use Case Description *</label>
+              <textarea id="training-description" rows="4" placeholder="Describe your communication needs, target audience, and any specific requirements..." required></textarea>
+            </div>
+            <div class="form-group">
+              <label for="training-dataset">Available Dataset Info (Optional)</label>
+              <textarea id="training-dataset" rows="3" placeholder="Describe any existing data, number of samples, format, etc."></textarea>
+            </div>
+            <button type="submit" class="primary-button full-width" id="submit-training-request">Submit Request</button>
+          </form>
+        </div>
+
+        <!-- Step 2: Payment -->
+        <div id="training-step-2" class="training-step" hidden>
+          <h3>Step 2: Payment ($15)</h3>
+          <p>Complete payment to submit your request for admin review.</p>
+          <div id="training-payment-status"></div>
+          <button id="training-pay-btn" class="primary-button full-width" type="button">Pay $15 via Stripe</button>
+        </div>
+
+        <!-- Step 3: Status -->
+        <div id="training-step-3" class="training-step" hidden>
+          <h3>Step 3: Request Status</h3>
+          <div id="training-status-display"></div>
+        </div>
+      </div>
+      <div id="my-training-requests" class="my-requests" hidden>
+        <h3>My Requests</h3>
+        <div id="training-requests-list"></div>
+      </div>
+    </div>
+
+    <!-- ADMIN DASHBOARD PAGE -->
+    <div id="admin-dashboard-page" class="page-section" hidden>
+      <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <h1>Admin Dashboard</h1>
+          <p>System overview and management</p>
+        </div>
+        <button id="admin-back-btn" class="secondary-button btn-sm" type="button">← Back to Communicator</button>
+      </div>
+      <div id="admin-dashboard-content"></div>
     </div>
 
     <footer class="footer">

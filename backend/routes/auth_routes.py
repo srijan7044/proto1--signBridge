@@ -49,6 +49,8 @@ def sync_user():
         name=name,
         image_url=image_url
     )
+    if user:
+        user["plan"] = UserModel.get_effective_plan(clerk_id)
     return api_response(data=user, message="User profile synchronized successfully.")
 
 
@@ -65,6 +67,8 @@ def get_profile():
             email=claims.get("email", ""),
             name=claims.get("name", "")
         )
+    if user:
+        user["plan"] = UserModel.get_effective_plan(g.clerk_id)
     return api_response(data=user)
 
 

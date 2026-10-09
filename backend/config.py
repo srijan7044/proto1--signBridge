@@ -47,8 +47,9 @@ class Config:
     STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
     STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
     STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
-    STRIPE_PRICE_PRO_MONTHLY = os.getenv("STRIPE_PRICE_PRO_MONTHLY", "price_signbridge_pro_monthly")
+    STRIPE_PRICE_PREMIUM_MONTHLY = os.getenv("STRIPE_PRICE_PREMIUM_MONTHLY", "price_signbridge_premium_monthly")
     STRIPE_PRICE_LIFETIME = os.getenv("STRIPE_PRICE_LIFETIME", "price_signbridge_lifetime")
+    STRIPE_PRICE_CUSTOM_TRAINING = os.getenv("STRIPE_PRICE_CUSTOM_TRAINING", "price_signbridge_custom_training")
 
     @classmethod
     def log_stripe_version(cls):
@@ -58,35 +59,102 @@ class Config:
             logger.info("Stripe SDK version: %s", getattr(stripe, "_version", "unknown"))
             logger.info("Stripe key type: %s", "test" if cls.STRIPE_SECRET_KEY.startswith("sk_test_") else "live")
 
-    # Pricing Tiers
+    # Exchange Rate for INR display (USD to INR)
+    USD_TO_INR_RATE = float(os.getenv("USD_TO_INR_RATE", "83.0"))
+    EXCHANGE_RATE_PROVIDER = os.getenv("EXCHANGE_RATE_PROVIDER", "fixed")  # fixed, exchangerate-api, openexchangerates
+    EXCHANGE_RATE_API_KEY = os.getenv("EXCHANGE_RATE_API_KEY", "")
+
+    # Usage Tracking
+    FREE_MONTHLY_ALLOWANCE_SECONDS = int(os.getenv("FREE_MONTHLY_ALLOWANCE_SECONDS", "14400"))  # 4 hours
+    USAGE_HEARTBEAT_INTERVAL_SECONDS = int(os.getenv("USAGE_HEARTBEAT_INTERVAL_SECONDS", "30"))
+    USAGE_INACTIVITY_TIMEOUT_SECONDS = int(os.getenv("USAGE_INACTIVITY_TIMEOUT_SECONDS", "120"))
+
+    # Subscription Plans
     PLANS = {
         "free": {
-            "name": "Free Tier",
-            "price": 0,
-            "features": ["Sign-to-Speech (Standard)", "Speech-to-Sign (Basic)", "Community Signs"],
+            "id": "free",
+            "name": "Free",
+            "price_usd": 0,
+            "price_inr": 0,
+            "billing_interval": None,
+            "stripe_price_id": None,
+            "features": {
+                "productive_hours_monthly": 4,
+                "productive_seconds_monthly": 14400,
+                "languages": ["en"],
+                "unlimited_usage": False,
+                "ai_assistant": False,
+                "custom_training": False,
+            },
+            "description": "4 productive hours per month, English only",
         },
-        "pro_monthly": {
-            "name": "SignBridge Pro (Monthly)",
-            "price": 9.99,
-            "currency": "usd",
-            "stripe_price_id": os.getenv("STRIPE_PRICE_PRO_MONTHLY", "price_signbridge_pro_monthly"),
-            "features": [
-                "Unlimited Live AI Sign Translation",
-                "Advanced Indian & Regional Signs (ISL)",
-                "Full Natural Grammar Synthesizer",
-                "Priority Speech Audio & Offline Mode",
-            ],
+        "premium": {
+            "id": "premium",
+            "name": "Premium",
+            "price_usd": 29.48,
+            "price_inr": 0,  # Calculated dynamically
+            "billing_interval": "month",
+            "stripe_price_id": os.getenv("STRIPE_PRICE_PREMIUM_MONTHLY", "price_signbridge_premium_monthly"),
+            "features": {
+                "productive_hours_monthly": None,
+                "productive_seconds_monthly": None,
+                "languages": ["en", "hi", "bn", "ta", "te", "mr", "gu", "kn", "ml", "pa", "or", "as"],
+                "unlimited_usage": True,
+                "ai_assistant": True,  # Future feature flag
+                "custom_training": False,
+            },
+            "description": "Unlimited usage, all supported languages, AI assistant (coming soon)",
         },
         "lifetime": {
-            "name": "SignBridge Lifetime Access",
-            "price": 79.99,
-            "currency": "usd",
+            "id": "lifetime",
+            "name": "Lifetime",
+            "price_usd": 2000,
+            "price_inr": 0,  # Calculated dynamically
+            "billing_interval": None,
             "stripe_price_id": os.getenv("STRIPE_PRICE_LIFETIME", "price_signbridge_lifetime"),
-            "features": [
-                "Lifetime Access to All Current & Future Features",
-                "All Regional Sign Language Packs",
-                "Direct API & Developer Access",
-                "VIP Support",
-            ],
+            "features": {
+                "productive_hours_monthly": None,
+                "productive_seconds_monthly": None,
+                "languages": ["en", "hi", "bn", "ta", "te", "mr", "gu", "kn", "ml", "pa", "or", "as", "regional"],
+                "unlimited_usage": True,
+                "ai_assistant": True,  # Future feature flag
+                "custom_training": False,
+            },
+            "description": "One-time payment, lifetime access, all regional languages",
+        },
+        "custom_training": {
+            "id": "custom_training",
+            "name": "Custom Model Training",
+            "price_usd": 15,
+            "price_inr": 0,  # Calculated dynamically
+            "billing_interval": None,
+            "stripe_price_id": os.getenv("STRIPE_PRICE_CUSTOM_TRAINING", "price_signbridge_custom_training"),
+            "features": {
+                "custom_model_request": True,
+            },
+            "description": "Request a custom sign language model for your language",
         },
     }
+
+    @classmethod
+    def get_plan(cls, plan_id):
+        """Get plan with calculated INR price."""
+        plan = cls.PLANS.get(plan_id)
+        if plan and plan["price_usd"] > 0:
+            plan = plan.copy()
+            plan["price_inr"] = round(plan["price_usd"] * cls.USD_TO_INR_RATE)
+        return plan
+
+    @classmethod
+    def get_all_plans(cls):
+        """Get all plans with calculated INR prices."""
+        plans = {}
+        for pid, plan in cls.PLANS.items():
+            plans[pid] = cls.get_plan(pid)
+        return plans
+
+    @classmethod
+    def get_user_entitlements(cls, user_plan):
+        """Get entitlements for a user's plan."""
+        plan = cls.PLANS.get(user_plan, cls.PLANS["free"])
+        return plan["features"]

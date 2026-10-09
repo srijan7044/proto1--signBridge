@@ -29,67 +29,19 @@
 <script type="module" src="./js/theme.js"></script>
     <main class="pricing-shell">
       <section class="pricing-hero">
-        <h1>SignBridge Premium Plans</h1>
+        <h1>SignBridge Subscription Plans</h1>
         <p class="pricing-hero-desc">
-          Unlock unlimited translation history, dataset exports, and high-speed cloud recognition.
+          Choose the plan that fits your communication needs. All plans include secure Clerk authentication and Stripe billing.
         </p>
       </section>
 
-      <div class="pricing-grid">
-        <!-- Free Tier -->
-        <div class="pricing-card">
-          <div class="pricing-header">
-            <h3>Free Explorer</h3>
-            <p class="price">$0 <span>/ month</span></p>
-          </div>
-          <ul class="pricing-features">
-            <li>✓ Real-time webcam sign detection</li>
-            <li>✓ Text-to-sign 3D animation</li>
-            <li>✓ Letter-to-word auto-spelling</li>
-            <li>✓ 20 saved history items</li>
-          </ul>
-          <button class="secondary-button full-width" disabled>Current Plan</button>
-        </div>
-
-        <!-- Pro Tier (Popular) -->
-        <div class="pricing-card pricing-card-featured">
-          <div class="featured-tag">MOST POPULAR</div>
-          <div class="pricing-header">
-            <h3>Pro Communicator</h3>
-            <p class="price">$9.99 <span>/ month</span></p>
-          </div>
-          <ul class="pricing-features">
-            <li>✓ Everything in Free</li>
-            <li>✓ Unlimited AI Grammar Synthesis</li>
-            <li>✓ Full CSV Dataset Import & Export</li>
-            <li>✓ Cloud Translation Synchronization</li>
-            <li>✓ Priority Recognition Engine</li>
-          </ul>
-          <button id="checkout-pro-btn" class="primary-button full-width" data-plan="pro">
-            Upgrade to Pro (Stripe)
-          </button>
-        </div>
-
-        <!-- Enterprise Tier -->
-        <div class="pricing-card">
-          <div class="pricing-header">
-            <h3>Enterprise & School</h3>
-            <p class="price">$29.99 <span>/ month</span></p>
-          </div>
-          <ul class="pricing-features">
-            <li>✓ Everything in Pro</li>
-            <li>✓ Custom Gesture Training Models</li>
-            <li>✓ Multi-user classroom management</li>
-            <li>✓ Dedicated API Access & Support</li>
-          </ul>
-          <button id="checkout-enterprise-btn" class="primary-button full-width" data-plan="enterprise">
-            Get Enterprise
-          </button>
-        </div>
+      <div class="pricing-grid" id="pricing-grid">
+        <!-- Plans will be rendered dynamically by pricing-page.js -->
       </div>
 
       <div class="pricing-footer">
-        <p>All plans include bank-level security powered by Clerk Authentication.</p>
+        <p>All plans include bank-level security powered by Clerk Authentication and Stripe Payments.</p>
+        <p>INR prices are approximate based on current exchange rates. Actual charges are in USD.</p>
         <p>Questions? Contact <a href="mailto:support@signbridge.app">support@signbridge.app</a></p>
       </div>
     </main>

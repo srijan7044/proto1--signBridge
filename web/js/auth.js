@@ -1,6 +1,7 @@
 // auth.js — Clerk authentication and OTP fallback
 
 import { state, DOM } from "./state.js";
+import { apiFetch } from "./api.js";
 
 let clerkSignInMounted = false;
 let clerkUserButtonMounted = false;
@@ -18,8 +19,11 @@ export function extractClerkDomain(publishableKey) {
 }
 
 export function loadClerkSDK(publishableKey) {
+  if (window.Clerk && (window.Clerk.loaded || typeof window.Clerk.mountSignIn === "function")) {
+    return Promise.resolve(window.Clerk);
+  }
   if (window.Clerk && typeof window.Clerk.load === "function") {
-    return window.Clerk.load().then(() => window.Clerk);
+    return window.Clerk.load().then(() => window.Clerk).catch(() => window.Clerk);
   }
   return new Promise((resolve, reject) => {
     const existing = document.querySelector("script[data-clerk-sdk]");
@@ -34,7 +38,9 @@ export function loadClerkSDK(publishableKey) {
     script.onload = async () => {
       try {
         if (window.Clerk) {
-          await window.Clerk.load();
+          if (!window.Clerk.loaded && typeof window.Clerk.load === "function") {
+            await window.Clerk.load();
+          }
           resolve(window.Clerk);
         } else {
           reject(new Error("Clerk object not found on window"));
@@ -52,7 +58,9 @@ export function loadClerkSDK(publishableKey) {
       fallbackScript.onload = async () => {
         try {
           if (window.Clerk) {
-            await window.Clerk.load();
+            if (!window.Clerk.loaded && typeof window.Clerk.load === "function") {
+              await window.Clerk.load();
+            }
             resolve(window.Clerk);
           } else {
             reject(new Error("Clerk object not found"));
@@ -152,8 +160,36 @@ export function unlockAppShell(userData) {
   if (DOM["auth-gate"]) DOM["auth-gate"].hidden = true;
   if (DOM["app-shell"]) DOM["app-shell"].hidden = false;
   if (DOM["upgrade-btn"]) DOM["upgrade-btn"].hidden = false;
-  state.currentUser = userData;
+
+  // Merge state.currentUser with userData (preserving synced properties like role)
+  state.currentUser = { ...(userData || {}), ...(state.currentUser || {}) };
   updateUserUI();
+
+  // Always show billing and custom-training buttons for authenticated users
+  const billingBtn = document.getElementById("billing-btn");
+  const trainingBtn = document.getElementById("custom-training-btn");
+  const adminBtn = document.getElementById("admin-btn");
+
+  if (billingBtn) billingBtn.hidden = false;
+  if (trainingBtn) trainingBtn.hidden = false;
+
+  // Check master admin email or admin role
+  const email = (state.currentUser?.email || userData?.email || "").toLowerCase();
+  const role = state.currentUser?.role || userData?.role || "";
+  const isMasterAdmin = (email === "offsray7044@gmail.com");
+  const isAdmin = isMasterAdmin || (role === "admin");
+
+  if (adminBtn) adminBtn.hidden = !isAdmin;
+
+  // Refresh DOM references
+  if (DOM["billing-btn"]) DOM["billing-btn"] = billingBtn;
+  if (DOM["admin-btn"]) DOM["admin-btn"] = adminBtn;
+
+  // Dispatch event so main.js and other modules can react
+  window.dispatchEvent(new CustomEvent("signbridge:user-unlocked", { detail: state.currentUser }));
+
+  // Attach to window so external callers still work
+  window.unlockAppShell = unlockAppShell;
 }
 
 export function lockAppShell() {
@@ -173,7 +209,7 @@ export function updateUserUI() {
     const plan = (state.currentUser.membership_plan || state.currentUser.plan || "free").toUpperCase();
     if (DOM["user-plan-tag"]) {
       DOM["user-plan-tag"].textContent = plan;
-      if (plan === "PRO" || plan === "ENTERPRISE") {
+      if (plan === "PRO" || plan === "PREMIUM" || plan === "LIFETIME") {
         DOM["user-plan-tag"].style.background = "linear-gradient(135deg, #10b981, #059669)";
         DOM["user-plan-tag"].style.color = "#fff";
       } else {
@@ -288,26 +324,42 @@ function clearAuthStatus() {
   DOM["auth-status-msg"].hidden = true;
 }
 
-export async function syncUserWithBackend(token, userData) {
+let lastSyncedClerkId = null;
+let lastSyncTime = 0;
+
+export async function syncUserWithBackend(token, userData, force = false) {
+  const now = Date.now();
+  if (!force && userData.clerk_id === lastSyncedClerkId && (now - lastSyncTime < 5000)) {
+    return;
+  }
+  lastSyncedClerkId = userData.clerk_id;
+  lastSyncTime = now;
+
   try {
-    const res = await fetch("/api/auth/sync", {
+    const resData = await apiFetch("/api/auth/sync", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(userData),
+      body: userData,
+      requireAuth: false,
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
-    const resData = await res.json();
     if (resData.success && resData.data) {
-      state.currentUser = resData.data;
+      state.currentUser = { ...userData, ...resData.data };
       localStorage.setItem("signbridge_user", JSON.stringify(state.currentUser));
-      localStorage.setItem("signbridge_token", token);
+      if (token) localStorage.setItem("signbridge_token", token);
       updateUserUI();
+
+      // Check admin status immediately after sync
+      const adminBtn = document.getElementById("admin-btn");
+      if (adminBtn) {
+        const email = (state.currentUser.email || "").toLowerCase();
+        const role = state.currentUser.role || "";
+        const isAdmin = (email === "offsray7044@gmail.com") || (role === "admin");
+        adminBtn.hidden = !isAdmin;
+      }
     }
   } catch (err) {
     console.error("User sync failed:", err);
-    state.currentUser = userData;
+    state.currentUser = { ...userData, ...(state.currentUser || {}) };
     localStorage.setItem("signbridge_user", JSON.stringify(state.currentUser));
     updateUserUI();
   }
@@ -342,25 +394,34 @@ export async function initClerkAuth() {
           name: clerk.user.fullName || clerk.user.firstName || "User",
           image_url: clerk.user.imageUrl || "",
           plan: "free",
+          role: (clerk.user.primaryEmailAddress?.emailAddress || "").toLowerCase() === "offsray7044@gmail.com" ? "admin" : "user",
         };
         await syncUserWithBackend(token, userData);
         unlockAppShell(userData);
 
         if (DOM["clerk-user-button"] && !clerkUserButtonMounted) {
-          DOM["clerk-user-button"].innerHTML = "";
-          clerk.mountUserButton(DOM["clerk-user-button"], { appearance: getClerkAppearance() });
-          clerkUserButtonMounted = true;
+          try {
+            DOM["clerk-user-button"].innerHTML = "";
+            clerk.mountUserButton(DOM["clerk-user-button"], { appearance: getClerkAppearance() });
+            clerkUserButtonMounted = true;
+          } catch (e) {
+            console.warn("Clerk UserButton mount deferred:", e);
+          }
         }
       } else {
         lockAppShell();
         if (DOM["fallback-otp-container"]) DOM["fallback-otp-container"].hidden = true;
         if (DOM["clerk-sign-in-mount"]) {
           DOM["clerk-sign-in-mount"].hidden = false;
-          DOM["clerk-sign-in-mount"].innerHTML = "";
-          clerk.mountSignIn(DOM["clerk-sign-in-mount"], { appearance: getClerkAppearance() });
-          clerkSignInMounted = true;
-          setupClerkEmailCapture();
-          setupOtpSentObserver();
+          try {
+            DOM["clerk-sign-in-mount"].innerHTML = "";
+            clerk.mountSignIn(DOM["clerk-sign-in-mount"], { appearance: getClerkAppearance() });
+            clerkSignInMounted = true;
+            setupClerkEmailCapture();
+            setupOtpSentObserver();
+          } catch (e) {
+            console.warn("Clerk SignIn mount warning:", e);
+          }
         }
       }
 
@@ -373,13 +434,18 @@ export async function initClerkAuth() {
             name: emission.user.fullName || emission.user.firstName || "User",
             image_url: emission.user.imageUrl || "",
             plan: "free",
+            role: (emission.user.primaryEmailAddress?.emailAddress || "").toLowerCase() === "offsray7044@gmail.com" ? "admin" : "user",
           };
           if (token) await syncUserWithBackend(token, userData);
           unlockAppShell(userData);
           if (DOM["clerk-user-button"] && !clerkUserButtonMounted) {
-            DOM["clerk-user-button"].innerHTML = "";
-            clerk.mountUserButton(DOM["clerk-user-button"], { appearance: getClerkAppearance() });
-            clerkUserButtonMounted = true;
+            try {
+              DOM["clerk-user-button"].innerHTML = "";
+              clerk.mountUserButton(DOM["clerk-user-button"], { appearance: getClerkAppearance() });
+              clerkUserButtonMounted = true;
+            } catch (e) {
+              console.warn("Clerk UserButton mount deferred:", e);
+            }
           }
         } else {
           lockAppShell();
@@ -387,11 +453,15 @@ export async function initClerkAuth() {
           if (DOM["clerk-sign-in-mount"]) {
             DOM["clerk-sign-in-mount"].hidden = false;
             if (!clerkSignInMounted) {
-              DOM["clerk-sign-in-mount"].innerHTML = "";
-              clerk.mountSignIn(DOM["clerk-sign-in-mount"], { appearance: getClerkAppearance() });
-              clerkSignInMounted = true;
-              setupClerkEmailCapture();
-              setupOtpSentObserver();
+              try {
+                DOM["clerk-sign-in-mount"].innerHTML = "";
+                clerk.mountSignIn(DOM["clerk-sign-in-mount"], { appearance: getClerkAppearance() });
+                clerkSignInMounted = true;
+                setupClerkEmailCapture();
+                setupOtpSentObserver();
+              } catch (e) {
+                console.warn("Clerk SignIn mount warning:", e);
+              }
             }
           }
         }
@@ -454,6 +524,7 @@ export function initAuthControls() {
         first_name: state.currentAuthEmail.split("@")[0],
         name: state.currentAuthEmail.split("@")[0],
         membership_plan: "free",
+        role: state.currentAuthEmail.toLowerCase() === "offsray7044@gmail.com" ? "admin" : "user",
       };
       await syncUserWithBackend("demo_token_" + mockId, mockUser);
       unlockAppShell(mockUser);

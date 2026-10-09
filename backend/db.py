@@ -10,6 +10,27 @@ from backend.config import Config
 
 logger = logging.getLogger("signbridge.db")
 
+class InMemoryCursor(list):
+    """List subclass that mimics PyMongo cursor.sort() signature."""
+    def sort(self, key_or_list=None, direction=1, *args, **kwargs):
+        if isinstance(key_or_list, str):
+            key_field = key_or_list
+            reverse = (direction == -1)
+        elif isinstance(key_or_list, (list, tuple)) and key_or_list:
+            first = key_or_list[0]
+            if isinstance(first, (list, tuple)):
+                key_field = first[0]
+                reverse = (first[1] == -1)
+            else:
+                key_field = str(first)
+                reverse = (direction == -1)
+        else:
+            return super().sort(*args, **kwargs)
+
+        super().sort(key=lambda x: x.get(key_field, "") or "", reverse=reverse)
+        return self
+
+
 class InMemoryCollection:
     """Safe in-memory fallback collection when MongoDB is offline."""
     def __init__(self, name):
@@ -37,7 +58,8 @@ class InMemoryCollection:
         res.inserted_ids = inserted_ids
         return res
 
-    def find_one(self, query):
+    def find_one(self, query=None):
+        query = query or {}
         for item in self._data:
             match = True
             for k, v in query.items():
@@ -62,7 +84,7 @@ class InMemoryCollection:
                 if projection and projection.get("_id") == 0:
                     res.pop("_id", None)
                 results.append(res)
-        return results
+        return InMemoryCursor(results)
 
     def update_one(self, query, update, upsert=False):
         set_vals = update.get("$set", {})
@@ -97,6 +119,14 @@ class InMemoryCollection:
         return len(self.find(query))
 
 
+class InMemoryDatabase(dict):
+    """Dictionary subclass that dynamically creates InMemoryCollections when accessed."""
+    def __missing__(self, key):
+        col = InMemoryCollection(key)
+        self[key] = col
+        return col
+
+
 class DatabaseManager:
     def __init__(self):
         self.client = None
@@ -121,12 +151,21 @@ class DatabaseManager:
             logger.warning(
                 f"MongoDB connection failed ({e}). Falling back to In-Memory mode."
             )
-            self.db = {
+            self.db = InMemoryDatabase({
                 "users": InMemoryCollection("users"),
                 "gestures": InMemoryCollection("gestures"),
                 "payments": InMemoryCollection("payments"),
                 "conversations": InMemoryCollection("conversations"),
-            }
+                "usage_sessions": InMemoryCollection("usage_sessions"),
+                "monthly_usage": InMemoryCollection("monthly_usage"),
+                "languages": InMemoryCollection("languages"),
+                "custom_training_requests": InMemoryCollection("custom_training_requests"),
+                "user_custom_models": InMemoryCollection("user_custom_models"),
+                "custom_models": InMemoryCollection("custom_models"),
+                "custom_model_samples": InMemoryCollection("custom_model_samples"),
+                "training_payments": InMemoryCollection("training_payments"),
+                "admin_action_logs": InMemoryCollection("admin_action_logs"),
+            })
 
     @property
     def users(self):
@@ -151,6 +190,48 @@ class DatabaseManager:
         if self.is_connected:
             return self.db["conversations"]
         return self.db["conversations"]
+
+    @property
+    def usage_sessions(self):
+        if self.is_connected:
+            return self.db["usage_sessions"]
+        return self.db["usage_sessions"]
+
+    @property
+    def monthly_usage(self):
+        if self.is_connected:
+            return self.db["monthly_usage"]
+        return self.db["monthly_usage"]
+
+    @property
+    def languages(self):
+        if self.is_connected:
+            return self.db["languages"]
+        return self.db["languages"]
+
+    @property
+    def custom_training_requests(self):
+        if self.is_connected:
+            return self.db["custom_training_requests"]
+        return self.db["custom_training_requests"]
+
+    @property
+    def user_custom_models(self):
+        if self.is_connected:
+            return self.db["user_custom_models"]
+        return self.db["user_custom_models"]
+
+    @property
+    def training_payments(self):
+        if self.is_connected:
+            return self.db["training_payments"]
+        return self.db["training_payments"]
+
+    @property
+    def admin_action_logs(self):
+        if self.is_connected:
+            return self.db["admin_action_logs"]
+        return self.db["admin_action_logs"]
 
     def health_check(self):
         if not self.is_connected:
