@@ -635,24 +635,60 @@ async function showAddCustomLanguageModal() {
 
 export function showAdminDashboard() {
   const page = document.getElementById("admin-dashboard-page");
+  const shell = document.getElementById("app-shell");
+  const modeTabs = document.getElementById("mode-tabs") || document.querySelector(".mode-tabs");
+  const tabS = document.getElementById("tab-sign-to-voice");
+  const tabV = document.getElementById("tab-voice-to-sign");
   const modeS = document.getElementById("mode-sign-to-voice");
   const modeV = document.getElementById("mode-voice-to-sign");
-  const shell = document.getElementById("app-shell");
-  if (page) page.hidden = false;
+
+  // 1. Hide the entire communicator shell and communication mode controls
+  if (shell) shell.hidden = true;
+  if (modeTabs) modeTabs.hidden = true;
+  if (tabS) tabS.hidden = true;
+  if (tabV) tabV.hidden = true;
   if (modeS) modeS.hidden = true;
   if (modeV) modeV.hidden = true;
-  if (shell) shell.hidden = false;
+
+  // 2. Show the dedicated admin dashboard page
+  if (page) page.hidden = false;
+
   loadAdminDashboard();
 }
 
 export function hideAdminDashboard() {
   const page = document.getElementById("admin-dashboard-page");
+  const shell = document.getElementById("app-shell");
+  const modeTabs = document.getElementById("mode-tabs") || document.querySelector(".mode-tabs");
+  const tabS = document.getElementById("tab-sign-to-voice");
+  const tabV = document.getElementById("tab-voice-to-sign");
   const modeS = document.getElementById("mode-sign-to-voice");
+  const modeV = document.getElementById("mode-voice-to-sign");
+
+  // 1. Hide the admin dashboard page
   if (page) page.hidden = true;
-  if (modeS) modeS.hidden = false;
+
+  // 2. Restore communicator shell and mode tabs for standard user view
+  if (shell) shell.hidden = false;
+  if (modeTabs) modeTabs.hidden = false;
+  if (tabS) tabS.hidden = false;
+  if (tabV) tabV.hidden = false;
+
+  // 3. Restore the previously active communication mode section
+  const isVoiceToSignActive = tabV && tabV.classList.contains("active");
+  if (isVoiceToSignActive) {
+    if (modeV) modeV.hidden = false;
+    if (modeS) modeS.hidden = true;
+  } else {
+    if (modeS) modeS.hidden = false;
+    if (modeV) modeV.hidden = true;
+  }
 }
 
 export function initAdmin() {
+  window.showAdminDashboard = showAdminDashboard;
+  window.hideAdminDashboard = hideAdminDashboard;
+
   document.addEventListener("click", (e) => {
     const adminBtn = e.target.closest("#admin-btn, .admin-nav-btn");
     if (adminBtn) {

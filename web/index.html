@@ -11,6 +11,60 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <script>
+      (function() {
+        var KEY = 'signbridge_theme';
+        function getTheme() {
+          try {
+            var s = localStorage.getItem(KEY) || localStorage.getItem('theme');
+            return (s === 'dark' || s === 'light') ? s : 'light';
+          } catch(e) { return 'light'; }
+        }
+        function updateUI(theme) {
+          document.documentElement.setAttribute('data-theme', theme);
+          document.documentElement.dataset.theme = theme;
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', theme === 'dark' ? '#0b0f19' : '#f8fafc');
+          var btns = document.querySelectorAll('#theme-toggle, .theme-toggle-btn');
+          btns.forEach(function(b) {
+            b.textContent = theme === 'dark' ? '☀️ Light theme' : '🌙 Dark theme';
+            b.setAttribute('aria-pressed', String(theme === 'dark'));
+          });
+        }
+
+        var current = getTheme();
+        document.documentElement.setAttribute('data-theme', current);
+        document.documentElement.dataset.theme = current;
+
+        window.__applySignBridgeTheme = function(theme, save) {
+          var next = (theme === 'dark') ? 'dark' : 'light';
+          if (save !== false) {
+            try { localStorage.setItem(KEY, next); } catch(e) {}
+          }
+          updateUI(next);
+          window.dispatchEvent(new CustomEvent('signbridge:theme-changed', { detail: { theme: next } }));
+          return next;
+        };
+
+        var lastToggle = 0;
+        window.toggleTheme = function() {
+          var now = Date.now();
+          if (now - lastToggle < 200) return document.documentElement.getAttribute('data-theme') || 'light';
+          lastToggle = now;
+          var cur = document.documentElement.getAttribute('data-theme') || 'light';
+          return window.__applySignBridgeTheme(cur === 'dark' ? 'light' : 'dark', true);
+        };
+
+        window.getSavedTheme = getTheme;
+        window.applyTheme = window.__applySignBridgeTheme;
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', function() { updateUI(getTheme()); });
+        } else {
+          updateUI(current);
+        }
+      })();
+    </script>
     <link rel="stylesheet" href="/static/style.css" />
     <link rel="stylesheet" href="/static/components.css" />
     <link rel="stylesheet" href="/static/auth.css" />
@@ -31,7 +85,8 @@
           id="theme-toggle"
           class="secondary-button"
           type="button"
-          aria-pressed="true"
+          aria-pressed="false"
+          onclick="window.toggleTheme && window.toggleTheme()"
         >
           🌙 Dark theme
         </button>

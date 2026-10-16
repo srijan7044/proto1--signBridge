@@ -314,3 +314,116 @@
 .sb-otp-popup-text a:hover {
   text-decoration: underline;
 }
+
+/* ==========================================
+   CLERK USER BUTTON & POPOVER THEMING
+   ========================================== */
+
+/* Dark Theme Clerk Popover */
+[data-theme="dark"] .cl-userButtonPopoverCard,
+[data-theme="dark"] [class*="cl-userButtonPopoverCard"],
+[data-theme="dark"] .cl-userButtonPopoverRoot {
+  background-color: #151c2e !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  color: #f8fafc !important;
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.8) !important;
+}
+
+[data-theme="dark"] .cl-userPreviewMainIdentifier,
+[data-theme="dark"] [class*="cl-userPreviewMainIdentifier"] {
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+
+[data-theme="dark"] .cl-userPreviewSecondaryIdentifier,
+[data-theme="dark"] [class*="cl-userPreviewSecondaryIdentifier"] {
+  color: #94a3b8 !important;
+}
+
+[data-theme="dark"] .cl-userButtonPopoverActionButton,
+[data-theme="dark"] [class*="cl-userButtonPopoverActionButton"] {
+  color: #f8fafc !important;
+}
+
+[data-theme="dark"] .cl-userButtonPopoverActionButtonText,
+[data-theme="dark"] [class*="cl-userButtonPopoverActionButtonText"] {
+  color: #f8fafc !important;
+  font-weight: 500 !important;
+}
+
+[data-theme="dark"] .cl-userButtonPopoverActionButtonIcon,
+[data-theme="dark"] [class*="cl-userButtonPopoverActionButtonIcon"] {
+  color: #94a3b8 !important;
+}
+
+[data-theme="dark"] .cl-userButtonPopoverActionButton:hover,
+[data-theme="dark"] [class*="cl-userButtonPopoverActionButton"]:hover {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-theme="dark"] .cl-userButtonPopoverFooter,
+[data-theme="dark"] [class*="cl-userButtonPopoverFooter"] {
+  background-color: #0f172a !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+[data-theme="dark"] .cl-userButtonPopoverFooter span,
+[data-theme="dark"] [class*="cl-userButtonPopoverFooter"] span,
+[data-theme="dark"] .cl-userButtonPopoverFooter a,
+[data-theme="dark"] [class*="cl-userButtonPopoverFooter"] a {
+  color: #94a3b8 !important;
+}
+
+/* Light Theme Clerk Popover */
+[data-theme="light"] .cl-userButtonPopoverCard,
+[data-theme="light"] [class*="cl-userButtonPopoverCard"] {
+  background-color: #ffffff !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  color: #0f172a !important;
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.12) !important;
+}
+
+[data-theme="light"] .cl-userPreviewMainIdentifier,
+[data-theme="light"] [class*="cl-userPreviewMainIdentifier"] {
+  color: #0f172a !important;
+  font-weight: 700 !important;
+}
+
+[data-theme="light"] .cl-userPreviewSecondaryIdentifier,
+[data-theme="light"] [class*="cl-userPreviewSecondaryIdentifier"] {
+  color: #64748b !important;
+}
+
+[data-theme="light"] .cl-userButtonPopoverActionButton,
+[data-theme="light"] [class*="cl-userButtonPopoverActionButton"] {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .cl-userButtonPopoverActionButtonText,
+[data-theme="light"] [class*="cl-userButtonPopoverActionButtonText"] {
+  color: #0f172a !important;
+  font-weight: 500 !important;
+}
+
+[data-theme="light"] .cl-userButtonPopoverActionButtonIcon,
+[data-theme="light"] [class*="cl-userButtonPopoverActionButtonIcon"] {
+  color: #64748b !important;
+}
+
+[data-theme="light"] .cl-userButtonPopoverActionButton:hover,
+[data-theme="light"] [class*="cl-userButtonPopoverActionButton"]:hover {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+[data-theme="light"] .cl-userButtonPopoverFooter,
+[data-theme="light"] [class*="cl-userButtonPopoverFooter"] {
+  background-color: #f8fafc !important;
+  border-top: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+[data-theme="light"] .cl-userButtonPopoverFooter span,
+[data-theme="light"] [class*="cl-userButtonPopoverFooter"] span,
+[data-theme="light"] .cl-userButtonPopoverFooter a,
+[data-theme="light"] [class*="cl-userButtonPopoverFooter"] a {
+  color: #64748b !important;
+}

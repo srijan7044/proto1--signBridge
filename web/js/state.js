@@ -70,6 +70,8 @@ export function initDOMElements() {
     "admin-dashboard-page", "admin-dashboard-content",
     "pricing-modal-grid",
     "admin-btn", "billing-btn", "custom-training-btn", "language-selector-btn", "user-usage-summary", "user-usage-text",
+    // Dropdown menu elements and mode tabs
+    "user-menu-toggle", "user-dropdown-menu", "mode-tabs",
   ];
 
   selectors.forEach((id) => {

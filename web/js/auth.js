@@ -77,8 +77,8 @@ export function loadClerkSDK(publishableKey) {
 }
 
 export function getClerkAppearance() {
-  const currentTheme = document.documentElement.getAttribute("data-theme") || document.documentElement.dataset.theme || "dark";
-  const isDark = currentTheme !== "light";
+  const currentTheme = document.documentElement.getAttribute("data-theme") || document.documentElement.dataset.theme || "light";
+  const isDark = currentTheme === "dark";
 
   if (isDark) {
     return {
@@ -116,6 +116,34 @@ export function getClerkAppearance() {
         footerActionText: { color: "#94a3b8" },
         footerActionLink: { color: "#38bdf8", fontWeight: "600" },
         footer: { background: "transparent" },
+        // Clerk UserButton Popover dark styling
+        userButtonPopoverCard: {
+          backgroundColor: "#151c2e",
+          border: "1px solid rgba(255, 255, 255, 0.15)",
+          boxShadow: "0 20px 40px -15px rgba(0, 0, 0, 0.8)",
+          color: "#f8fafc",
+        },
+        userPreviewMainIdentifier: {
+          color: "#ffffff",
+          fontWeight: "700",
+        },
+        userPreviewSecondaryIdentifier: {
+          color: "#94a3b8",
+        },
+        userButtonPopoverActionButton: {
+          color: "#f8fafc",
+        },
+        userButtonPopoverActionButtonText: {
+          color: "#f8fafc",
+          fontWeight: "500",
+        },
+        userButtonPopoverActionButtonIcon: {
+          color: "#94a3b8",
+        },
+        userButtonPopoverFooter: {
+          backgroundColor: "#0f172a",
+          borderTop: "1px solid rgba(255, 255, 255, 0.1)",
+        },
       },
     };
   } else {
@@ -151,6 +179,34 @@ export function getClerkAppearance() {
         footerActionText: { color: "#64748b" },
         footerActionLink: { color: "#0284c7", fontWeight: "600" },
         footer: { background: "transparent" },
+        // Clerk UserButton Popover light styling
+        userButtonPopoverCard: {
+          backgroundColor: "#ffffff",
+          border: "1px solid rgba(0, 0, 0, 0.12)",
+          boxShadow: "0 20px 40px -15px rgba(0, 0, 0, 0.12)",
+          color: "#0f172a",
+        },
+        userPreviewMainIdentifier: {
+          color: "#0f172a",
+          fontWeight: "700",
+        },
+        userPreviewSecondaryIdentifier: {
+          color: "#64748b",
+        },
+        userButtonPopoverActionButton: {
+          color: "#0f172a",
+        },
+        userButtonPopoverActionButtonText: {
+          color: "#0f172a",
+          fontWeight: "500",
+        },
+        userButtonPopoverActionButtonIcon: {
+          color: "#64748b",
+        },
+        userButtonPopoverFooter: {
+          backgroundColor: "#f8fafc",
+          borderTop: "1px solid rgba(0, 0, 0, 0.08)",
+        },
       },
     };
   }
@@ -158,17 +214,20 @@ export function getClerkAppearance() {
 
 export function unlockAppShell(userData) {
   if (DOM["auth-gate"]) DOM["auth-gate"].hidden = true;
-  if (DOM["app-shell"]) DOM["app-shell"].hidden = false;
+  const adminPage = document.getElementById("admin-dashboard-page");
+  if (!adminPage || adminPage.hidden) {
+    if (DOM["app-shell"]) DOM["app-shell"].hidden = false;
+  }
   if (DOM["upgrade-btn"]) DOM["upgrade-btn"].hidden = false;
 
   // Merge state.currentUser with userData (preserving synced properties like role)
   state.currentUser = { ...(userData || {}), ...(state.currentUser || {}) };
   updateUserUI();
 
-  // Always show billing and custom-training buttons for authenticated users
-  const billingBtn = document.getElementById("billing-btn");
-  const trainingBtn = document.getElementById("custom-training-btn");
-  const adminBtn = document.getElementById("admin-btn");
+  // Use dynamic element lookups for consistent references
+  const billingBtn = document.getElementById("billing-btn") || DOM["billing-btn"];
+  const trainingBtn = document.getElementById("custom-training-btn") || DOM["custom-training-btn"];
+  const adminBtn = document.getElementById("admin-btn") || DOM["admin-btn"];
 
   if (billingBtn) billingBtn.hidden = false;
   if (trainingBtn) trainingBtn.hidden = false;
@@ -181,10 +240,6 @@ export function unlockAppShell(userData) {
 
   if (adminBtn) adminBtn.hidden = !isAdmin;
 
-  // Refresh DOM references
-  if (DOM["billing-btn"]) DOM["billing-btn"] = billingBtn;
-  if (DOM["admin-btn"]) DOM["admin-btn"] = adminBtn;
-
   // Dispatch event so main.js and other modules can react
   window.dispatchEvent(new CustomEvent("signbridge:user-unlocked", { detail: state.currentUser }));
 
@@ -196,29 +251,69 @@ export function lockAppShell() {
   if (DOM["auth-gate"]) DOM["auth-gate"].hidden = false;
   if (DOM["app-shell"]) DOM["app-shell"].hidden = true;
   if (DOM["upgrade-btn"]) DOM["upgrade-btn"].hidden = true;
+  const adminPage = document.getElementById("admin-dashboard-page");
+  if (adminPage) adminPage.hidden = true;
   state.currentUser = null;
   updateUserUI();
+
+  // Dispatch event for dropdown and other modules to clean up
+  window.dispatchEvent(new CustomEvent("signbridge:user-locked", { detail: null }));
+  window.lockAppShell = lockAppShell;
 }
 
 export function updateUserUI() {
+  const profileMenu = document.getElementById("user-profile-menu") || DOM["user-profile-menu"];
+  const displayName = document.getElementById("user-display-name") || DOM["user-display-name"];
+  const planTag = document.getElementById("user-plan-tag") || DOM["user-plan-tag"];
+  const clerkBtn = document.getElementById("clerk-user-button") || DOM["clerk-user-button"];
+  const avatarBadge = document.getElementById("user-avatar-badge") || DOM["user-avatar-badge"];
+
   if (state.currentUser) {
-    if (DOM["user-profile-menu"]) DOM["user-profile-menu"].hidden = false;
-    if (DOM["user-display-name"]) {
-      DOM["user-display-name"].textContent = state.currentUser.first_name || state.currentUser.name || state.currentUser.email || "User";
+    if (profileMenu) profileMenu.hidden = false;
+    if (displayName) {
+      displayName.textContent =
+        state.currentUser.first_name ||
+        state.currentUser.name ||
+        state.currentUser.email ||
+        "User";
     }
+
     const plan = (state.currentUser.membership_plan || state.currentUser.plan || "free").toUpperCase();
-    if (DOM["user-plan-tag"]) {
-      DOM["user-plan-tag"].textContent = plan;
+    if (planTag) {
+      planTag.textContent = plan;
       if (plan === "PRO" || plan === "PREMIUM" || plan === "LIFETIME") {
-        DOM["user-plan-tag"].style.background = "linear-gradient(135deg, #10b981, #059669)";
-        DOM["user-plan-tag"].style.color = "#fff";
+        planTag.style.background = "linear-gradient(135deg, #10b981, #059669)";
+        planTag.style.color = "#ffffff";
+        planTag.style.borderColor = "transparent";
       } else {
-        DOM["user-plan-tag"].style.background = "";
-        DOM["user-plan-tag"].style.color = "";
+        planTag.style.background = "";
+        planTag.style.color = "";
+        planTag.style.borderColor = "";
+      }
+    }
+
+    // Avatar presentation:
+    // When Clerk UserButton is mounted and populated with children, display it as the avatar inside the bar.
+    // Otherwise, show avatarBadge with either the real user avatar image or the fallback emoji.
+    const hasClerkAvatar = clerkBtn && clerkUserButtonMounted && clerkBtn.children.length > 0;
+    if (hasClerkAvatar) {
+      clerkBtn.hidden = false;
+      if (avatarBadge) avatarBadge.hidden = true;
+    } else {
+      if (clerkBtn) clerkBtn.hidden = true;
+      if (avatarBadge) {
+        avatarBadge.hidden = false;
+        const imageUrl = state.currentUser.image_url;
+        if (imageUrl) {
+          avatarBadge.innerHTML = `<img src="${imageUrl}" class="user-avatar-img" alt="Profile" />`;
+        } else {
+          avatarBadge.textContent = "👤";
+        }
       }
     }
   } else {
-    if (DOM["user-profile-menu"]) DOM["user-profile-menu"].hidden = true;
+    if (profileMenu) profileMenu.hidden = true;
+    if (clerkBtn) clerkBtn.hidden = true;
   }
 }
 
@@ -404,6 +499,7 @@ export async function initClerkAuth() {
             DOM["clerk-user-button"].innerHTML = "";
             clerk.mountUserButton(DOM["clerk-user-button"], { appearance: getClerkAppearance() });
             clerkUserButtonMounted = true;
+            updateUserUI();
           } catch (e) {
             console.warn("Clerk UserButton mount deferred:", e);
           }
@@ -443,6 +539,7 @@ export async function initClerkAuth() {
               DOM["clerk-user-button"].innerHTML = "";
               clerk.mountUserButton(DOM["clerk-user-button"], { appearance: getClerkAppearance() });
               clerkUserButtonMounted = true;
+              updateUserUI();
             } catch (e) {
               console.warn("Clerk UserButton mount deferred:", e);
             }
@@ -554,18 +651,30 @@ export function initAuthControls() {
     if (!state.clerkInstance) return;
 
     const appearance = getClerkAppearance();
+    let updated = false;
+
     if (typeof state.clerkInstance.__unstable__updateProps === "function") {
       try {
         if (!state.clerkInstance.user && DOM["clerk-sign-in-mount"]) {
           state.clerkInstance.__unstable__updateProps({
             node: DOM["clerk-sign-in-mount"],
             props: { appearance: appearance },
-          }).catch(() => {});
+          }).then(() => { updated = true; }).catch(() => {});
         } else if (state.clerkInstance.user && DOM["clerk-user-button"]) {
           state.clerkInstance.__unstable__updateProps({
             node: DOM["clerk-user-button"],
             props: { appearance: appearance },
-          }).catch(() => {});
+          }).then(() => { updated = true; }).catch(() => {});
+        }
+      } catch (_) {}
+    }
+
+    if (!updated) {
+      try {
+        if (state.clerkInstance.user && clerkUserButtonMounted && DOM["clerk-user-button"]) {
+          state.clerkInstance.mountUserButton(DOM["clerk-user-button"], { appearance });
+        } else if (!state.clerkInstance.user && clerkSignInMounted && DOM["clerk-sign-in-mount"]) {
+          state.clerkInstance.mountSignIn(DOM["clerk-sign-in-mount"], { appearance });
         }
       } catch (_) {}
     }

@@ -21,6 +21,11 @@
   border: 1px solid var(--border-color);
 }
 
+.mode-tabs[hidden],
+.tab-button[hidden] {
+  display: none !important;
+}
+
 .tab-button {
   flex: 1;
   display: flex;

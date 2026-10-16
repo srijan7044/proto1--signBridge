@@ -8,6 +8,60 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+      (function() {
+        var KEY = 'signbridge_theme';
+        function getTheme() {
+          try {
+            var s = localStorage.getItem(KEY) || localStorage.getItem('theme');
+            return (s === 'dark' || s === 'light') ? s : 'light';
+          } catch(e) { return 'light'; }
+        }
+        function updateUI(theme) {
+          document.documentElement.setAttribute('data-theme', theme);
+          document.documentElement.dataset.theme = theme;
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', theme === 'dark' ? '#0b0f19' : '#f8fafc');
+          var btns = document.querySelectorAll('#theme-toggle, .theme-toggle-btn');
+          btns.forEach(function(b) {
+            b.textContent = theme === 'dark' ? '☀️ Light theme' : '🌙 Dark theme';
+            b.setAttribute('aria-pressed', String(theme === 'dark'));
+          });
+        }
+
+        var current = getTheme();
+        document.documentElement.setAttribute('data-theme', current);
+        document.documentElement.dataset.theme = current;
+
+        window.__applySignBridgeTheme = function(theme, save) {
+          var next = (theme === 'dark') ? 'dark' : 'light';
+          if (save !== false) {
+            try { localStorage.setItem(KEY, next); } catch(e) {}
+          }
+          updateUI(next);
+          window.dispatchEvent(new CustomEvent('signbridge:theme-changed', { detail: { theme: next } }));
+          return next;
+        };
+
+        var lastToggle = 0;
+        window.toggleTheme = function() {
+          var now = Date.now();
+          if (now - lastToggle < 200) return document.documentElement.getAttribute('data-theme') || 'light';
+          lastToggle = now;
+          var cur = document.documentElement.getAttribute('data-theme') || 'light';
+          return window.__applySignBridgeTheme(cur === 'dark' ? 'light' : 'dark', true);
+        };
+
+        window.getSavedTheme = getTheme;
+        window.applyTheme = window.__applySignBridgeTheme;
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', function() { updateUI(getTheme()); });
+        } else {
+          updateUI(current);
+        }
+      })();
+    </script>
     <link rel="stylesheet" href="/static/style.css" />
     <link rel="stylesheet" href="/static/components.css" />
     <link rel="stylesheet" href="/static/sign-to-speech.css" />
@@ -33,27 +87,35 @@
           <span class="dropdown-arrow">▼</span>
         </div>
         <div id="auth-section" class="auth-section">
-          <!-- Official Clerk User Button Mount -->
-          <div id="clerk-user-button"></div>
           <div id="user-profile-menu" class="user-profile-menu" hidden>
+            <!-- User Avatar (Clerk User Button or Custom Avatar Badge) -->
+            <div id="clerk-user-button" class="clerk-user-button" hidden></div>
             <span id="user-avatar-badge" class="user-avatar-badge">👤</span>
             <span id="user-display-name" class="user-display-name">User</span>
             <span id="user-plan-tag" class="badge-subtle">FREE</span>
             <div id="user-usage-summary" class="user-usage-summary" hidden>
               <span class="usage-mini">Usage: <span id="user-usage-text">0%</span></span>
             </div>
-            <button id="billing-btn" class="secondary-button btn-sm" type="button">Billing</button>
-            <button id="custom-training-btn" class="secondary-button btn-sm" type="button">Training</button>
-            <button id="admin-btn" class="secondary-button btn-sm" type="button" hidden>Admin</button>
-            <button id="auth-sign-out-btn" class="secondary-button btn-sm" type="button">Sign Out</button>
+            <!-- Three-dots dropdown menu -->
+            <div class="user-menu-dropdown" id="user-menu-dropdown">
+              <button id="user-menu-toggle" class="icon-button" type="button" aria-label="User menu" aria-expanded="false" aria-haspopup="true">
+                <span class="dots" aria-hidden="true">⋮</span>
+              </button>
+              <div class="dropdown-menu" id="user-dropdown-menu" role="menu" hidden>
+                <button id="billing-btn" class="dropdown-item" type="button" role="menuitem">💳 Billing</button>
+                <button id="custom-training-btn" class="dropdown-item" type="button" role="menuitem">🎯 Training</button>
+                <button id="admin-btn" class="dropdown-item" type="button" role="menuitem" hidden>🛡️ Admin</button>
+                <hr class="dropdown-divider" />
+                <button id="auth-sign-out-btn" class="dropdown-item dropdown-item-danger" type="button" role="menuitem">🚪 Sign Out</button>
+              </div>
+            </div>
           </div>
         </div>
-          <button id="theme-toggle" class="secondary-button" type="button" aria-pressed="true">
-            🌙 Dark theme
-          </button>
+        <button id="theme-toggle" class="secondary-button" type="button" aria-pressed="false" onclick="window.toggleTheme && window.toggleTheme()">
+          🌙 Dark theme
+        </button>
       </div>
     </header>
-<script type="module" src="./js/theme.js"></script>
     <!-- AUTH GATE: APPLICATION LOCKED UNTIL USER SIGNS IN -->
     <div id="auth-gate" class="auth-gate-wrapper">
       <div class="auth-gate-container">
@@ -137,7 +199,7 @@
     <!-- MAIN APPLICATION SHELL (LOCKED BY DEFAULT) -->
     <main id="app-shell" class="shell" hidden>
       <!-- Mode Selection Tabs -->
-      <nav class="mode-tabs" aria-label="Communication modes">
+      <nav class="mode-tabs" id="mode-tabs" aria-label="Communication modes">
         <button id="tab-sign-to-voice" class="tab-button active" type="button">
           <span class="tab-icon">🖐️</span> Sign to Speech (Deaf &rarr; Hearing)
         </button>
